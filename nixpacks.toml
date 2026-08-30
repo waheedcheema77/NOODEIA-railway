@@ -5,11 +5,12 @@ nixPkgs = ["nodejs_22", "python311", "python311Packages.pip"]
 [phases.install]
 cmds = [
     "cd frontend && npm install --legacy-peer-deps",
-    "cd frontend && pip install --break-system-packages -r requirements.txt"
+    "python3 -m venv .venv",
+    ".venv/bin/pip install -r frontend/requirements.txt"
 ]
 
 [phases.build]
 cmds = ["cd frontend && NODE_OPTIONS='--max-old-space-size=8192' npm run build"]
 
 [start]
-cmd = "cd frontend && npm start"
+cmd = "cd frontend && PYTHON_PATH=../.venv/bin/python npm start"
