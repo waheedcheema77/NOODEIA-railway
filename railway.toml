@@ -10,3 +10,14 @@ restartPolicyMaxRetries = 10
 [env]
 NODE_ENV = "production"
 PORT = "3000"
+# Dummy variables to allow Next.js build to pass
+NEXT_PUBLIC_SUPABASE_URL = "https://placeholder.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "placeholder"
+NEXT_PUBLIC_NEO4J_URI = "bolt://placeholder"
+NEXT_PUBLIC_NEO4J_USERNAME = "placeholder"
+NEXT_PUBLIC_NEO4J_PASSWORD = "placeholder"
+GEMINI_API_KEY = "placeholder"
+PUSHER_APP_ID = "placeholder"
+PUSHER_SECRET = "placeholder"
+NEXT_PUBLIC_PUSHER_KEY = "placeholder"
+NEXT_PUBLIC_PUSHER_CLUSTER = "placeholder"
