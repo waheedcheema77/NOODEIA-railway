@@ -37,18 +37,22 @@ export default function Header({ onMenuClick, onNotesClick }) {
           {navItems.map((item) => {
             const isActive = pathname === item.path
             return (
-              <Link 
-                key={item.path} 
-                href={item.path}
-                title={item.name}
-                className={`p-2 rounded-xl transition-all duration-200 ${
-                  isActive 
-                    ? "bg-white/80 text-[var(--noodeia-primary)] shadow-sm" 
-                    : "text-zinc-500 hover:text-zinc-800 hover:bg-white/50"
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-              </Link>
+              <div key={item.path} className="relative group flex items-center justify-center">
+                <Link 
+                  href={item.path}
+                  className={`p-2 rounded-xl transition-all duration-200 ${
+                    isActive 
+                      ? "bg-white/80 text-[var(--noodeia-primary)] shadow-sm" 
+                      : "text-zinc-500 hover:text-zinc-800 hover:bg-white/50"
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                </Link>
+                {/* Tooltip */}
+                <div className="absolute -bottom-8 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none bg-zinc-800 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap shadow-lg">
+                  {item.name}
+                </div>
+              </div>
             )
           })}
         </div>
