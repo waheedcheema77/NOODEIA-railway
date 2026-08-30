@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, X, PanelLeftClose, PanelLeftOpen, Edit2, Check, MessageSquare, Users, Trash2, Home } from "lucide-react"
+import { Plus, X, PanelLeftClose, PanelLeftOpen, Edit2, Check, MessageSquare, Users, Trash2, Home, ClipboardCheck, BookOpen, LayoutGrid } from "lucide-react"
 import { useRouter } from "next/navigation"
 import ConversationRow from "./ConversationRow"
 import ThemeCycleButton from "./ThemeCycleButton"
@@ -199,16 +199,49 @@ export default function Sidebar({
                 {!collapsed && "New Chat"}
               </button>
             </div>
-            <div className="px-4 pb-2">
+            <div className="px-4 pb-2 space-y-2">
               <button
-                onClick={() => router.push('/home')}
+                onClick={() => router.push('/groupchat')}
                 className={`flex h-10 w-full items-center gap-2 rounded-xl glass-button glass-button-light px-4 ${
-                  collapsed ? "justify-center" : "justify-center"
+                  collapsed ? "justify-center" : "justify-start"
                 }`}
-                title={collapsed ? "Homepage" : undefined}
+                title={collapsed ? "Group Chat" : undefined}
               >
-                <Home className="h-4 w-4" />
-                {!collapsed && "Homepage"}
+                <Users className="h-4 w-4 shrink-0" />
+                {!collapsed && "Group Chat"}
+              </button>
+              
+              <button
+                onClick={() => router.push('/quiz')}
+                className={`flex h-10 w-full items-center gap-2 rounded-xl glass-button glass-button-light px-4 ${
+                  collapsed ? "justify-center" : "justify-start"
+                }`}
+                title={collapsed ? "Quiz Time" : undefined}
+              >
+                <ClipboardCheck className="h-4 w-4 shrink-0" />
+                {!collapsed && "Quiz Time"}
+              </button>
+              
+              <button
+                onClick={() => router.push('/games')}
+                className={`flex h-10 w-full items-center gap-2 rounded-xl glass-button glass-button-light px-4 ${
+                  collapsed ? "justify-center" : "justify-start"
+                }`}
+                title={collapsed ? "Games" : undefined}
+              >
+                <BookOpen className="h-4 w-4 shrink-0" />
+                {!collapsed && "Games"}
+              </button>
+              
+              <button
+                onClick={() => router.push('/todo')}
+                className={`flex h-10 w-full items-center gap-2 rounded-xl glass-button glass-button-light px-4 ${
+                  collapsed ? "justify-center" : "justify-start"
+                }`}
+                title={collapsed ? "To Do" : undefined}
+              >
+                <LayoutGrid className="h-4 w-4 shrink-0" />
+                {!collapsed && "To Do"}
               </button>
             </div>
           </div>

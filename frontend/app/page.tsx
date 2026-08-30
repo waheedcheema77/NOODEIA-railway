@@ -133,7 +133,7 @@ export default function HomePage() {
             Features
           </Link>
           {isAuthenticated ? (
-            <Link className="text-sm font-medium hover:text-noodeia-primary transition-colors" href="/ai">
+            <Link className="text-sm font-medium hover:text-noodeia-primary transition-colors" href="/home">
               Hi! {userName}
             </Link>
           ) : (
