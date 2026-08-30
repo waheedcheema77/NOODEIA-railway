@@ -1,6 +1,7 @@
 import sys
+
 from gtts import gTTS
-import os
+
 
 def synthesize_speech(text, out_path):
     tts = gTTS(text=text, lang='en', slow=False)

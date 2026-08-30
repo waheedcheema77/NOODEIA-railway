@@ -37,7 +37,7 @@ export default function GachaOrb({ nodeType, onOpen }: GachaOrbProps) {
 
   const colors = orbColors[nodeType];
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = (e: any) => {
     e.preventDefault();
     e.stopPropagation();
 

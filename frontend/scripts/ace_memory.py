@@ -8,17 +8,14 @@ Implements the core memory system from the ACE paper:
 - Semantic deduplication
 """
 
-from typing import Any, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
-from datetime import datetime
-import json
 import hashlib
-import re
-from pathlib import Path
-from collections import defaultdict
-import numpy as np
 import math
 import os
+import re
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
 
 DEFAULT_MEMORY_STRENGTH = float(os.getenv("ACE_MEMORY_BASE_STRENGTH", "100.0"))
 
@@ -34,24 +31,24 @@ class Bullet:
     helpful_count: int = 0  # Times marked as helpful
     harmful_count: int = 0  # Times marked as harmful
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    last_used: Optional[str] = None
-    tags: List[str] = field(default_factory=list)  # For categorization
-    embedding: Optional[List[float]] = None  # For semantic similarity
+    last_used: str | None = None
+    tags: list[str] = field(default_factory=list)  # For categorization
+    embedding: list[float] | None = None  # For semantic similarity
     semantic_strength: float = 0.0  # Base weight for semantic memory component
     episodic_strength: float = 0.0  # Base weight for episodic memory component
     procedural_strength: float = 0.0  # Base weight for procedural memory component
-    semantic_last_access: Optional[str] = None  # Legacy timestamp support
-    episodic_last_access: Optional[str] = None
-    procedural_last_access: Optional[str] = None
-    semantic_access_index: Optional[int] = None  # Access counter snapshot
-    episodic_access_index: Optional[int] = None
-    procedural_access_index: Optional[int] = None
-    learner_id: Optional[str] = None
-    topic: Optional[str] = None
-    concept: Optional[str] = None
-    memory_type: Optional[str] = None  # semantic, episodic, procedural
-    ttl_days: Optional[int] = None
-    content_hash: Optional[str] = None
+    semantic_last_access: str | None = None  # Legacy timestamp support
+    episodic_last_access: str | None = None
+    procedural_last_access: str | None = None
+    semantic_access_index: int | None = None  # Access counter snapshot
+    episodic_access_index: int | None = None
+    procedural_access_index: int | None = None
+    learner_id: str | None = None
+    topic: str | None = None
+    concept: str | None = None
+    memory_type: str | None = None  # semantic, episodic, procedural
+    ttl_days: int | None = None
+    content_hash: str | None = None
     
     def __post_init__(self):
         """Generate ID from content if not provided"""
@@ -104,7 +101,7 @@ class Bullet:
         normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
         return hashlib.sha256(normalized.encode()).hexdigest()
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             "id": self.id,
@@ -132,7 +129,7 @@ class Bullet:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Bullet':
+    def from_dict(cls, data: dict[str, Any]) -> 'Bullet':
         """Create from dictionary"""
         return cls(
             id=data.get("id", ""),
@@ -182,10 +179,10 @@ class DeltaUpdate:
     Represents a delta update to the context.
     Contains new bullets or modifications to existing ones.
     """
-    new_bullets: List[Bullet] = field(default_factory=list)
-    update_bullets: Dict[str, Dict[str, int]] = field(default_factory=dict)  # id -> {helpful: +1, harmful: 0}
-    remove_bullets: Set[str] = field(default_factory=set)  # IDs to remove
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    new_bullets: list[Bullet] = field(default_factory=list)
+    update_bullets: dict[str, dict[str, int]] = field(default_factory=dict)  # id -> {helpful: +1, harmful: 0}
+    remove_bullets: set[str] = field(default_factory=set)  # IDs to remove
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ACEMemory:
@@ -204,7 +201,7 @@ class ACEMemory:
         max_bullets: int = 100,
         dedup_threshold: float = 0.85,
         prune_threshold: float = 0.3,
-        decay_rates: Optional[Dict[str, float]] = None,
+        decay_rates: dict[str, float] | None = None,
         storage: Any = None,
     ):
         # Require Neo4j storage - no JSON fallback
@@ -227,9 +224,9 @@ class ACEMemory:
         self.decay_rates = {k: max(0.0, min(1.0, v)) for k, v in default_decay.items()}
         self.access_clock = 0
         
-        self.bullets: Dict[str, Bullet] = {}  # id -> Bullet
-        self.categories: Dict[str, List[str]] = defaultdict(list)  # tag -> [bullet_ids]
-        self.hash_index: Dict[str, Set[str]] = defaultdict(set)  # normalized content hash -> bullet ids
+        self.bullets: dict[str, Bullet] = {}  # id -> Bullet
+        self.categories: dict[str, list[str]] = defaultdict(list)  # tag -> [bullet_ids]
+        self.hash_index: dict[str, set[str]] = defaultdict(set)  # normalized content hash -> bullet ids
         self._fresh_from_init = False
         self._loaded_once = False
         
@@ -261,7 +258,7 @@ class ACEMemory:
                 if not ids:
                     self.hash_index.pop(hash_val, None)
 
-    def _is_duplicate(self, bullet: Bullet) -> Optional[str]:
+    def _is_duplicate(self, bullet: Bullet) -> str | None:
         candidate_hash = bullet.content_hash or self._normalized_hash(bullet.content)
         ids = self.hash_index.get(candidate_hash)
         if not ids:
@@ -281,7 +278,7 @@ class ACEMemory:
     def _component_score(
         self,
         strength: float,
-        last_index: Optional[int],
+        last_index: int | None,
         decay_key: str,
     ) -> float:
         if strength <= 0:
@@ -292,7 +289,7 @@ class ACEMemory:
         t = max(self.access_clock - last_index, 0)
         return strength * math.pow(base, t)
 
-    def _compute_score(self, bullet: Bullet, now: Optional[datetime] = None) -> float:
+    def _compute_score(self, bullet: Bullet, now: datetime | None = None) -> float:
         # 'now' retained for backward compatibility but unused in access-count mode.
         semantic = self._component_score(
             bullet.semantic_strength,
@@ -335,17 +332,16 @@ class ACEMemory:
 
     def _touch_bullets(
         self,
-        bullets: List[Bullet],
-        timestamp: Optional[datetime] = None,
-        access_index: Optional[int] = None,
+        bullets: list[Bullet],
+        timestamp: datetime | None = None,
+        access_index: int | None = None,
     ):
         if not bullets:
             return
         if access_index is None:
             access_index = self._next_access_index()
         else:
-            if access_index > self.access_clock:
-                self.access_clock = access_index
+            self.access_clock = max(self.access_clock, access_index)
         ts = timestamp or datetime.now()
         iso_ts = ts.isoformat()
         for bullet in bullets:
@@ -363,8 +359,8 @@ class ACEMemory:
     def _touch_bullet(
         self,
         bullet: Bullet,
-        timestamp: Optional[datetime] = None,
-        access_index: Optional[int] = None,
+        timestamp: datetime | None = None,
+        access_index: int | None = None,
     ):
         self._touch_bullets([bullet], timestamp=timestamp, access_index=access_index)
 
@@ -410,8 +406,8 @@ class ACEMemory:
     def _normalise_bullet(
         self,
         bullet: Bullet,
-        access_index: Optional[int] = None,
-        timestamp: Optional[datetime] = None,
+        access_index: int | None = None,
+        timestamp: datetime | None = None,
     ):
         """Ensure strengths and timestamps are initialised according to tags."""
         tag_set = {tag.lower() for tag in bullet.tags}
@@ -442,7 +438,7 @@ class ACEMemory:
         except Exception:
             return datetime.fromtimestamp(0)
 
-    def _select_canonical_bullet(self, a: Bullet, b: Bullet) -> Tuple[Bullet, Bullet]:
+    def _select_canonical_bullet(self, a: Bullet, b: Bullet) -> tuple[Bullet, Bullet]:
         """Choose which bullet should be kept when merging duplicates."""
         score_a = (a.helpful_count - a.harmful_count)
         score_b = (b.helpful_count - b.harmful_count)
@@ -477,9 +473,9 @@ class ACEMemory:
     def _merge_or_add_bullet(
         self,
         bullet: Bullet,
-        access_index: Optional[int] = None,
-        timestamp: Optional[datetime] = None,
-    ) -> Tuple[Bullet, bool]:
+        access_index: int | None = None,
+        timestamp: datetime | None = None,
+    ) -> tuple[Bullet, bool]:
         """Upsert a bullet, merging into an existing one when possible."""
         self._finalize_bullet(bullet)
         duplicate_id = self._is_duplicate(bullet)
@@ -525,8 +521,8 @@ class ACEMemory:
     def find_similar_bullet(
         self,
         content: str,
-        learner_id: Optional[str] = None,
-        topic: Optional[str] = None,
+        learner_id: str | None = None,
+        topic: str | None = None,
         threshold: float = 0.9,
         return_score: bool = False,
     ):
@@ -548,7 +544,7 @@ class ACEMemory:
             return best, (best_score if best is not None else 0.0)
         return best
     
-    def _populate_from_data(self, data: Dict[str, Any]):
+    def _populate_from_data(self, data: dict[str, Any]):
         """Hydrate in-memory structures from a serialized payload."""
         self.bullets.clear()
         self.categories = defaultdict(list)
@@ -820,13 +816,13 @@ class ACEMemory:
         self,
         query: str,
         top_k: int = 10,
-        tags: Optional[List[str]] = None,
+        tags: list[str] | None = None,
         min_score: float = 0.0,
-        learner_id: Optional[str] = None,
-        topic: Optional[str] = None,
-        memory_types: Optional[List[str]] = None,
-        facets: Optional[Dict[str, Any]] = None,
-    ) -> List[Bullet]:
+        learner_id: str | None = None,
+        topic: str | None = None,
+        memory_types: list[str] | None = None,
+        facets: dict[str, Any] | None = None,
+    ) -> list[Bullet]:
         """Retrieve relevant bullets using structured facets."""
 
         facets = facets or {}
@@ -861,7 +857,7 @@ class ACEMemory:
         if not candidates:
             return []
 
-        query_terms: List[str] = []
+        query_terms: list[str] = []
         if query:
             query_terms.append(query)
         persona = facets.get("persona_request")
@@ -918,10 +914,10 @@ class ACEMemory:
         self,
         query: str,
         top_k: int = 10,
-        tags: Optional[List[str]] = None,
-        learner_id: Optional[str] = None,
-        topic: Optional[str] = None,
-        memory_types: Optional[List[str]] = None,
+        tags: list[str] | None = None,
+        learner_id: str | None = None,
+        topic: str | None = None,
+        memory_types: list[str] | None = None,
     ) -> str:
         """
         Format relevant bullets into a context string for the LLM.
@@ -949,7 +945,7 @@ class ACEMemory:
         
         return "\n".join(context_parts)
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get memory statistics"""
         if not self.bullets:
             return {

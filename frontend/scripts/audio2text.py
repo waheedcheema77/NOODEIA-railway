@@ -1,7 +1,8 @@
-import sys
 import os
+import sys
+
 from google import genai
-from google.genai import types, errors
+from google.genai import errors, types
 
 # Use an audio-capable model (2.0 Flash Lite is text-only and rejects audio).
 # The v1 Gemini API supports the 1.5 audio-capable models; v1beta often returns 404.
@@ -81,7 +82,7 @@ def transcribe_audio_file(audio_file_path):
         text = response.text.strip()
         return text
     except Exception as e:
-        print(f"Error transcribing audio: {str(e)}", file=sys.stderr)
+        print(f"Error transcribing audio: {e!s}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         sys.exit(1)

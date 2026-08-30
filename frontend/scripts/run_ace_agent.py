@@ -15,25 +15,25 @@ and any scratch metadata (including ACE delta stats).
 
 from __future__ import annotations
 
+import io
 import json
+import re
 import sys
 import time
-from pathlib import Path
-import io
-import re
 from contextlib import redirect_stdout
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any
 
 # Ensure local modules are available when spawned with a different cwd
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from langgraph_agent_ace import build_ace_graph  # noqa: E402
-from langgraph_utile import _extract_final  # noqa: E402
+from langgraph_agent_ace import build_ace_graph
+from langgraph_utile import _extract_final
 
 
-def _clean_answer(answer: Optional[str]) -> Optional[str]:
+def _clean_answer(answer: str | None) -> str | None:
     if not answer:
         return answer
     final = _extract_final(answer)
@@ -47,7 +47,7 @@ def _clean_answer(answer: Optional[str]) -> Optional[str]:
     return cleaned_stripped or answer
 
 
-def _sanitize_answer(answer: Optional[str]) -> Optional[str]:
+def _sanitize_answer(answer: str | None) -> str | None:
     if not answer:
         return answer
     lines = answer.splitlines()

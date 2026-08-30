@@ -902,7 +902,7 @@ export default function CircularGallery({
     
     // Only create new App if items actually changed (by content, not reference)
     // This prevents unnecessary remounts when items array reference changes but content is the same
-    if (appRef.current && itemsEqual(previousItemsRef.current, items)) {
+    if (appRef.current && itemsEqual(previousItemsRef.current, items || [])) {
       // Items haven't changed by content - don't remount
       return;
     }
@@ -925,7 +925,7 @@ export default function CircularGallery({
     });
     
     appRef.current = app;
-    previousItemsRef.current = items;
+    previousItemsRef.current = items || [];
     
     return () => {
       if (appRef.current) {

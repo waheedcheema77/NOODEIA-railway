@@ -11,10 +11,8 @@ from __future__ import annotations
 
 import argparse
 import os
-from collections import defaultdict
-from typing import Any, Dict, List
-
 from pathlib import Path
+
 try:
     from dotenv import load_dotenv
     # Load .env.local from the frontend directory
@@ -24,7 +22,7 @@ try:
 except ImportError:
     pass 
 
-from ace_memory import ACEMemory, Bullet
+from ace_memory import ACEMemory
 from ace_memory_store import Neo4jMemoryStore
 
 

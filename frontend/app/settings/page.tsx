@@ -49,7 +49,7 @@ const PRESET_COLORS = [
 
 export default function SettingsPage() {
   const router = useRouter()
-  const [currentUser, setCurrentUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   // Avatar customization states
@@ -98,7 +98,7 @@ export default function SettingsPage() {
     let initialScrollPosition = window.scrollY || window.pageYOffset || 0
 
     // Throttle scroll handler for better performance
-    let scrollTimer = null
+    let scrollTimer: ReturnType<typeof setTimeout> | null = null
     const handleScroll = () => {
       if (scrollTimer !== null) {
         clearTimeout(scrollTimer)
@@ -250,9 +250,9 @@ export default function SettingsPage() {
 
         if (userData) {
           setCurrentUser(userData)
-          setIconType(userData.iconType || 'initials')
-          setSelectedEmoji(userData.iconEmoji || '😀')
-          setSelectedColor(userData.iconColor || '#F6B3DC')
+          setIconType((userData as any).iconType || 'initials')
+          setSelectedEmoji((userData as any).iconEmoji || '😀')
+          setSelectedColor((userData as any).iconColor || '#F6B3DC')
         } else {
           console.error('Failed to create user in Neo4j')
           router.push('/login')
@@ -328,7 +328,7 @@ export default function SettingsPage() {
     }
   }
 
-  const showNotification = (message) => {
+  const showNotification = (message: string) => {
     setToastMessage(message)
     setShowToast(true)
     setTimeout(() => setShowToast(false), 3000)

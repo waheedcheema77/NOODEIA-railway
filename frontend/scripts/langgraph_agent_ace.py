@@ -7,27 +7,27 @@ Integrates Agentic Context Engineering into the LangGraph workflow:
 - Supports both offline and online adaptation
 """
 
-from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph_utile import *
-from typing import Any, Dict, List, Optional
-from pathlib import Path
-import time
 import os
 import re
+import time
+from typing import Any
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
+
+from ace_components import ACEPipeline, ExecutionTrace
 
 # Import ACE components
 from ace_memory import ACEMemory
-from ace_components import ACEPipeline, ExecutionTrace
 from ace_memory_store import Neo4jMemoryStore
-
+from langgraph_utile import *
 
 # Global ACE caches keyed by learner identifier
-_ACE_CACHE: Dict[str, Dict[str, Any]] = {}
+_ACE_CACHE: dict[str, dict[str, Any]] = {}
 
 
-def _extract_retrieval_facets(message: str, scratch: Dict[str, Any]) -> Dict[str, Any]:
-    facets: Dict[str, Any] = {}
+def _extract_retrieval_facets(message: str, scratch: dict[str, Any]) -> dict[str, Any]:
+    facets: dict[str, Any] = {}
     lowered = (message or "").lower()
 
     if any(token in lowered for token in ("visual", "diagram", "picture", "draw", "show me")):
@@ -53,7 +53,7 @@ def _extract_retrieval_facets(message: str, scratch: Dict[str, Any]) -> Dict[str
     return facets
 
 
-def _infer_topic(question: str) -> Optional[str]:
+def _infer_topic(question: str) -> str | None:
     lowered = (question or "").lower()
     if "fraction" in lowered or "/" in lowered:
         if "add" in lowered or "+" in lowered:
@@ -66,7 +66,7 @@ def _infer_topic(question: str) -> Optional[str]:
     return None
 
 
-def get_ace_system(learner_id: Optional[str] = None):
+def get_ace_system(learner_id: str | None = None):
     """Get or create the ACE system for a specific learner."""
     key = learner_id or "global"
     entry = _ACE_CACHE.get(key)
@@ -160,13 +160,7 @@ def router_node(state: GraphState) -> GraphState:
     state.setdefault("scratch", {})["ace_bullets"] = [b.to_dict() for b in relevant_bullets]
 
     # Check for Neo4j/database queries
-    if any(w in normalized_text for w in ["chapter", "unit", "textbook", "quiz", "user", "session", "group", "message", "database", "graph"]):
-        state["mode"] = "react"
-    # Check for calculator needs
-    elif any(w in normalized_text for w in ["calculate", "sum", "difference", "product", "ratio", "percent", "%", "number", "verify", "double check", "make sure", "confirm", "check if"]):
-        state["mode"] = "react"
-    # Check for web search needs
-    elif any(w in normalized_text for w in ["search", "web", "internet", "current", "latest", "trending", "news", "online", "look up", "find out", "recent", "today"]):
+    if any(w in normalized_text for w in ["chapter", "unit", "textbook", "quiz", "user", "session", "group", "message", "database", "graph"]) or any(w in normalized_text for w in ["calculate", "sum", "difference", "product", "ratio", "percent", "%", "number", "verify", "double check", "make sure", "confirm", "check if"]) or any(w in normalized_text for w in ["search", "web", "internet", "current", "latest", "trending", "news", "online", "look up", "find out", "recent", "today"]):
         state["mode"] = "react"
     # Check for tree-of-thought needs
     elif any(w in normalized_text for w in ["plan", "options", "steps", "strategy", "search space"]):
@@ -286,7 +280,7 @@ def solver_node_with_ace(state: GraphState) -> GraphState:
             state["messages"] = messages
     
     # Call the original solver
-    from langgraph_utile import solve_cot, solve_tot, solve_react
+    from langgraph_utile import solve_cot, solve_react, solve_tot
     
     if mode == "cot":
         result = solve_cot(state)
@@ -429,7 +423,7 @@ if __name__ == "__main__":
     memory, _ = get_ace_system()
     stats = memory.get_statistics()
     
-    print(f"\n📊 Current Memory State:")
+    print("\n📊 Current Memory State:")
     print(f"   Total bullets: {stats['total_bullets']}")
     if stats['total_bullets'] > 0:
         print(f"   Average score: {stats['avg_score']:.2f}")
@@ -469,7 +463,7 @@ if __name__ == "__main__":
         # Show ACE delta if available
         if "ace_delta" in out.get("scratch", {}):
             delta = out["scratch"]["ace_delta"]
-            print(f"\n💡 ACE Learning:")
+            print("\n💡 ACE Learning:")
             print(f"   New bullets: {delta['num_new_bullets']}")
             print(f"   Updated: {delta['num_updates']}")
             print(f"   Removed: {delta['num_removals']}")
@@ -480,7 +474,7 @@ if __name__ == "__main__":
     
     # Show updated memory stats
     stats = memory.get_statistics()
-    print(f"\n📊 Updated Memory State:")
+    print("\n📊 Updated Memory State:")
     print(f"   Total bullets: {stats['total_bullets']}")
     if stats['total_bullets'] > 0:
         print(f"   Average score: {stats['avg_score']:.2f}")

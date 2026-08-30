@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import os
 import threading
-from typing import Any, Dict, Optional
+import atexit
+from typing import Any
 
 from neo4j import GraphDatabase
 from neo4j.exceptions import Neo4jError
@@ -42,7 +43,18 @@ def _get_driver():
     return _DRIVER
 
 
-def _get_database() -> Optional[str]:
+def _close_driver():
+    """Close the global Neo4j driver on exit."""
+    global _DRIVER
+    with _DRIVER_LOCK:
+        if _DRIVER is not None:
+            _DRIVER.close()
+            _DRIVER = None
+
+atexit.register(_close_driver)
+
+
+def _get_database() -> str | None:
     """Return the configured database name, if provided."""
     return os.getenv("NEO4J_DATABASE") or None
 
@@ -56,7 +68,7 @@ class Neo4jMemoryStore:
         self.learner_id = learner_id
         self._database = _get_database()
 
-    def load(self) -> Optional[Dict[str, Any]]:
+    def load(self) -> dict[str, Any] | None:
         """Load the stored memory JSON for this learner, if it exists."""
         driver = _get_driver()
         try:
@@ -111,7 +123,7 @@ class Neo4jMemoryStore:
             )
             return None
 
-    def save(self, data: Dict[str, Any]) -> None:
+    def save(self, data: dict[str, Any]) -> None:
         """Persist the given memory snapshot for this learner."""
         driver = _get_driver()
         payload = json.dumps(data, ensure_ascii=False)

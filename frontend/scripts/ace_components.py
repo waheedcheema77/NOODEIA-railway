@@ -7,19 +7,19 @@ Implements the three-role architecture from the ACE paper:
 3. Curator: Synthesizes lessons into delta updates
 """
 
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass
 import json
 import os
 import re
 import sys
+from dataclasses import dataclass
+from typing import Any
 
 # Add project root to path to import prompts
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from ace_memory import Bullet, DeltaUpdate, ACEMemory
-from prompts.ace_memory_prompts import REFLECTOR_PROMPT, CURATOR_PROMPT
+from prompts.ace_memory_prompts import CURATOR_PROMPT, REFLECTOR_PROMPT
 
+from ace_memory import ACEMemory, Bullet, DeltaUpdate
 
 # ============== COMPONENTS ==============
 
@@ -28,10 +28,10 @@ class ExecutionTrace:
     """Represents the execution trace of a single query"""
     question: str
     model_answer: str
-    ground_truth: Optional[str] = None
+    ground_truth: str | None = None
     success: bool = False
-    trace_messages: List[Dict[str, Any]] = None
-    metadata: Dict[str, Any] = None
+    trace_messages: list[dict[str, Any]] = None
+    metadata: dict[str, Any] = None
     
     def __post_init__(self):
         if self.trace_messages is None:
@@ -73,7 +73,7 @@ class Reflector:
         self,
         trace: ExecutionTrace,
         max_refinement_rounds: int = 3,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Reflect on an execution trace and extract lessons.
         
@@ -136,7 +136,7 @@ class Reflector:
         
         return []
     
-    def _parse_json_response(self, content: str) -> Optional[Dict[str, Any]]:
+    def _parse_json_response(self, content: str) -> dict[str, Any] | None:
         """Parse JSON from LLM response, handling markdown code blocks"""
         try:
             # Remove markdown code blocks if present
@@ -168,13 +168,11 @@ class Curator:
         self.memory = memory
 
     @staticmethod
-    def _infer_memory_attributes(content: str, tags: List[str]) -> Tuple[str, Optional[str]]:
+    def _infer_memory_attributes(content: str, tags: list[str]) -> tuple[str, str | None]:
         lower = content.lower()
         if any(keyword in lower for keyword in ["step", "goal", "convert", "next", "state", "progress", "now do"]):
             memory_type = "procedural"
-        elif any(keyword in lower for keyword in ["user", "student", "prefers", "request", "frustration", "asked", "likes", "history"]):
-            memory_type = "episodic"
-        elif any(keyword in lower for keyword in ["misconception", "error", "mistake", "struggle", "issue", "confused"]):
+        elif any(keyword in lower for keyword in ["user", "student", "prefers", "request", "frustration", "asked", "likes", "history"]) or any(keyword in lower for keyword in ["misconception", "error", "mistake", "struggle", "issue", "confused"]):
             memory_type = "episodic"
         elif any(tag.lower() == "state" for tag in tags):
             memory_type = "procedural"
@@ -191,8 +189,8 @@ class Curator:
         return memory_type, concept
 
     @staticmethod
-    def _normalise_tags(tags: List[str]) -> List[str]:
-        normalised: List[str] = []
+    def _normalise_tags(tags: list[str]) -> list[str]:
+        normalised: list[str] = []
         seen = set()
         for tag in tags:
             if not tag:
@@ -210,12 +208,12 @@ class Curator:
     def _derive_supporting_bullets(
         self,
         content: str,
-        normalized_tags: List[str],
-        learner_id: Optional[str],
-        topic: Optional[str],
-        facets: Optional[Dict[str, Any]] = None,
-    ) -> List[Bullet]:
-        extras: List[Bullet] = []
+        normalized_tags: list[str],
+        learner_id: str | None,
+        topic: str | None,
+        facets: dict[str, Any] | None = None,
+    ) -> list[Bullet]:
+        extras: list[Bullet] = []
         lower = content.lower()
         facets = facets or {}
         fractions = list(dict.fromkeys(facets.get("fractions") or re.findall(r"\d+\s*/\s*\d+", content)))
@@ -276,10 +274,10 @@ class Curator:
 
     def _lessons_to_delta(
         self,
-        lessons: List[Dict[str, Any]],
-        learner_id: Optional[str] = None,
-        topic: Optional[str] = None,
-        facets: Optional[Dict[str, Any]] = None,
+        lessons: list[dict[str, Any]],
+        learner_id: str | None = None,
+        topic: str | None = None,
+        facets: dict[str, Any] | None = None,
     ) -> DeltaUpdate:
         delta = DeltaUpdate()
         similarity_threshold = float(os.getenv("ACE_CURATOR_SIMILARITY", "0.9"))
@@ -362,11 +360,11 @@ class Curator:
 
     def curate(
         self,
-        lessons: List[Dict[str, Any]],
+        lessons: list[dict[str, Any]],
         query: str,
-        learner_id: Optional[str] = None,
-        topic: Optional[str] = None,
-        facets: Optional[Dict[str, Any]] = None,
+        learner_id: str | None = None,
+        topic: str | None = None,
+        facets: dict[str, Any] | None = None,
         **_: Any,
     ) -> DeltaUpdate:
         """
@@ -514,7 +512,7 @@ class Curator:
 
         return delta
     
-    def _parse_json_response(self, content: str) -> Optional[Dict[str, Any]]:
+    def _parse_json_response(self, content: str) -> dict[str, Any] | None:
         """Parse JSON from LLM response"""
         try:
             content = content.strip()
@@ -545,8 +543,8 @@ class ACEPipeline:
         self.curator = Curator(llm, memory)
 
     @staticmethod
-    def _fallback_lessons(trace: ExecutionTrace) -> List[Dict[str, Any]]:
-        lessons: List[Dict[str, Any]] = []
+    def _fallback_lessons(trace: ExecutionTrace) -> list[dict[str, Any]]:
+        lessons: list[dict[str, Any]] = []
         messages = trace.trace_messages or []
         user_messages = [m.get("content", "") for m in messages if m.get("role") == "user"]
         last_user = (user_messages[-1] if user_messages else trace.question) or ""
@@ -572,7 +570,7 @@ class ACEPipeline:
         self,
         trace: ExecutionTrace,
         apply_update: bool = True,
-    ) -> Optional[DeltaUpdate]:
+    ) -> DeltaUpdate | None:
         """
         Process a single execution trace through the ACE pipeline.
         
@@ -583,7 +581,7 @@ class ACEPipeline:
         Returns:
             The delta update (or None if reflection failed)
         """
-        print(f"[ACE Pipeline] Processing execution...")
+        print("[ACE Pipeline] Processing execution...")
 
         # Step 1: Reflector extracts lessons
         print("[ACE Pipeline] Step 1: Reflecting on execution...")
@@ -656,8 +654,8 @@ class ACEPipeline:
         question: str,
         base_prompt: str,
         top_k: int = 10,
-        learner_id: Optional[str] = None,
-        topic: Optional[str] = None,
+        learner_id: str | None = None,
+        topic: str | None = None,
     ) -> str:
         """
         Get an enriched prompt with relevant context from memory.
@@ -678,7 +676,7 @@ class ACEPipeline:
             return f"{base_prompt}\n\nQuestion: {question}"
 
 
-def _infer_topic_from_text(text: str) -> Optional[str]:
+def _infer_topic_from_text(text: str) -> str | None:
     lowered = (text or "").lower()
     if "fraction" in lowered or "/" in lowered:
         if "add" in lowered or "+" in lowered:

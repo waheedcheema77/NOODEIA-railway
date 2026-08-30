@@ -1,37 +1,38 @@
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict
-import re
 import json
-import time
 import os
-import asyncio, sys
+import re
+import sys
+import time
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from collections import Counter
+from typing import Any, Literal, TypedDict
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import requests
-from mcp import ClientSession
-from mcp.client.stdio import stdio_client, StdioServerParameters
-from mcp.client.streamable_http import streamablehttp_client
-from mcp.client.session import ClientSession  # newer import path
-from langchain_community.tools.tavily_search.tool import TavilySearchResults
-from langchain_community.graphs import Neo4jGraph
 from langchain_community.chains.graph_qa.cypher import GraphCypherQAChain
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.graphs import Neo4jGraph
+from langchain_community.tools.tavily_search.tool import TavilySearchResults
 from langchain_core.prompts import PromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # Add project root to path to import prompts
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from prompts.neo4j_prompts import CYPHER_PROMPT, QA_PROMPT
-from prompts.reasoning_prompts import COT_PROMPT, TOT_EXPAND_TEMPLATE, TOT_VALUE_TEMPLATE, REACT_SYSTEM
-
 from dotenv import load_dotenv
+from prompts.neo4j_prompts import CYPHER_PROMPT, QA_PROMPT
+from prompts.reasoning_prompts import (
+    COT_PROMPT,
+    REACT_SYSTEM,
+    TOT_EXPAND_TEMPLATE,
+    TOT_VALUE_TEMPLATE,
+)
+
 load_dotenv()
 
 # ===================== Memory System =====================
@@ -44,7 +45,7 @@ class ConversationMemory:
     
     def __init__(self, memory_file: str = "conversation_memory.json"):
         self.memory_file = Path(memory_file)
-        self.conversations: List[Dict[str, Any]] = []
+        self.conversations: list[dict[str, Any]] = []
         self._load_memory()
     
     def _load_memory(self):
@@ -72,7 +73,7 @@ class ConversationMemory:
         question: str,
         answer: str,
         mode: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ):
         """Add a new conversation to memory"""
         conversation = {
@@ -85,15 +86,15 @@ class ConversationMemory:
         self.conversations.append(conversation)
         self._save_memory()
     
-    def get_all_conversations(self) -> List[Dict[str, Any]]:
+    def get_all_conversations(self) -> list[dict[str, Any]]:
         """Get all stored conversations"""
         return self.conversations
     
-    def get_recent_conversations(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_conversations(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get most recent conversations"""
         return self.conversations[-limit:]
     
-    def analyze_frequent_questions(self, top_n: int = 10) -> List[Tuple[str, int]]:
+    def analyze_frequent_questions(self, top_n: int = 10) -> list[tuple[str, int]]:
         """
         Analyze and return most frequently asked questions.
         Returns list of (question, count) tuples.
@@ -109,7 +110,7 @@ class ConversationMemory:
         
         return question_counter.most_common(top_n)
     
-    def analyze_question_patterns(self) -> Dict[str, Any]:
+    def analyze_question_patterns(self) -> dict[str, Any]:
         """
         Analyze patterns in questions asked.
         Returns statistics about question types, modes used, etc.
@@ -154,7 +155,7 @@ class ConversationMemory:
             "date_range": date_range
         }
     
-    def search_conversations(self, keyword: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def search_conversations(self, keyword: str, limit: int = 10) -> list[dict[str, Any]]:
         """
         Search conversations by keyword in question or answer.
         Returns matching conversations.
@@ -178,7 +179,7 @@ class ConversationMemory:
         self.conversations = []
         self._save_memory()
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get comprehensive statistics about stored conversations"""
         stats = self.analyze_question_patterns()
         stats["frequent_questions"] = self.analyze_frequent_questions(top_n=5)
@@ -197,10 +198,10 @@ def get_conversation_memory(memory_file: str = "conversation_memory.json") -> Co
 
 
 class GraphState(TypedDict):
-    messages: List[Dict[str, Any]]
+    messages: list[dict[str, Any]]
     mode: Literal["cot", "tot", "react"]
-    scratch: Dict[str, Any]
-    result: Dict[str, Any]
+    scratch: dict[str, Any]
+    result: dict[str, Any]
 
 class LLM:
     def __init__(self, model: str = "gemini-2.5-flash", temperature: float = 0.2):
@@ -212,11 +213,11 @@ class LLM:
         self.endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
     @staticmethod
-    def _text_parts(content: str) -> List[Dict[str, Any]]:
+    def _text_parts(content: str) -> list[dict[str, Any]]:
         return [{"text": str(content)}]
 
     @staticmethod
-    def _tool_response_part(name: str, raw_content: Any) -> Dict[str, Any]:
+    def _tool_response_part(name: str, raw_content: Any) -> dict[str, Any]:
         if isinstance(raw_content, str):
             try:
                 parsed = json.loads(raw_content)
@@ -229,10 +230,10 @@ class LLM:
         return {"functionResponse": {"name": name or "tool", "response": parsed}}
 
     @staticmethod
-    def _convert_tools(tools: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
+    def _convert_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
         if not tools:
             return None
-        declarations: List[Dict[str, Any]] = []
+        declarations: list[dict[str, Any]] = []
         for tool in tools:
             fn = tool.get("function") or {}
             name = fn.get("name")
@@ -249,9 +250,9 @@ class LLM:
             return None
         return [{"function_declarations": declarations}]
 
-    def _convert_messages(self, messages: List[Dict[str, Any]]) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
+    def _convert_messages(self, messages: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
         system_instruction = None
-        contents: List[Dict[str, Any]] = []
+        contents: list[dict[str, Any]] = []
 
         for msg in messages:
             role = msg.get("role", "")
@@ -278,20 +279,20 @@ class LLM:
 
     def chat(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         *,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[str] = None,
-        temperature: Optional[float] = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+        temperature: float | None = None,
         max_tokens: int = 1000,
         retry: int = 3,
-        response_mime_type: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        last_err: Optional[Exception] = None
+        response_mime_type: str | None = None,
+    ) -> dict[str, Any]:
+        last_err: Exception | None = None
         for _ in range(retry):
             try:
                 system_instruction, contents = self._convert_messages(messages)
-                body: Dict[str, Any] = {
+                body: dict[str, Any] = {
                     "contents": contents,
                     "generationConfig": {
                         "temperature": temperature if temperature is not None else self.temperature,
@@ -339,8 +340,8 @@ class LLM:
 
                 content_obj = candidate.get("content") or {}
                 parts = content_obj.get("parts") or []
-                text_chunks: List[str] = []
-                tool_calls: List[Dict[str, Any]] = []
+                text_chunks: list[str] = []
+                tool_calls: list[dict[str, Any]] = []
 
                 for part in parts:
                     if "text" in part:
@@ -360,7 +361,7 @@ class LLM:
                             }
                         )
 
-                message: Dict[str, Any] = {"content": "\n".join(text_chunks).strip()}
+                message: dict[str, Any] = {"content": "\n".join(text_chunks).strip()}
                 if tool_calls:
                     message["tool_calls"] = tool_calls
 
@@ -430,7 +431,7 @@ def safe_eval_expression(expression: str) -> float:
         raise ValueError(f"Invalid expression: {e}")
 
 
-def _calculator_run(args: Dict[str, Any]) -> str:
+def _calculator_run(args: dict[str, Any]) -> str:
     """
     Safe calculator tool that evaluates mathematical expressions using AST parsing.
     Supports basic arithmetic operations: +, -, *, /, **, %, and parentheses.
@@ -447,9 +448,9 @@ def _calculator_run(args: Dict[str, Any]) -> str:
     except ZeroDivisionError:
         return "Calculator error: Division by zero."
     except ValueError as e:
-        return f"Calculator error: {str(e)}"
+        return f"Calculator error: {e!s}"
     except Exception as e:
-        return f"Calculator error: {str(e)}"
+        return f"Calculator error: {e!s}"
 
 def _calculator_schema() -> dict:
     return {
@@ -470,7 +471,7 @@ def _calculator_schema() -> dict:
         },
     }
 
-def _deep_research_run(args: Dict[str, Any]) -> str:
+def _deep_research_run(args: dict[str, Any]) -> str:
     if TavilySearchResults is None:
         return "DeepResearch error: langchain_community or tavily-python not installed."
     query = args.get("query") or ""
@@ -509,7 +510,7 @@ def _deep_research_schema() -> dict:
         },
     }
 
-def _google_search_run(args: Dict[str, Any]) -> str:
+def _google_search_run(args: dict[str, Any]) -> str:
     """
     Google Custom Search API tool for web search.
     Requires GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables.
@@ -574,9 +575,9 @@ def _google_search_run(args: Dict[str, Any]) -> str:
             return str(output)
             
     except requests.exceptions.RequestException as e:
-        return f"GoogleSearch error: Network error - {str(e)}"
+        return f"GoogleSearch error: Network error - {e!s}"
     except Exception as e:
-        return f"GoogleSearch error: {str(e)}"
+        return f"GoogleSearch error: {e!s}"
 
 def _google_search_schema() -> dict:
     return {
@@ -727,7 +728,7 @@ def _build_neo4j_chain(top_k: int = 10):
     )
     return _NEO4J_CHAIN
 
-def _neo4j_retrieveqa_run(args: Dict[str, Any]) -> str:
+def _neo4j_retrieveqa_run(args: dict[str, Any]) -> str:
     """
     Run Neo4j retrieve-and-QA with two-step pipeline:
     1. Generate Cypher query from natural language question
@@ -784,7 +785,7 @@ def _neo4j_retrieveqa_run(args: Dict[str, Any]) -> str:
             return str(payload)
             
     except Exception as e:
-        error_msg = f"Neo4jRetrieveQA error: {str(e)}"
+        error_msg = f"Neo4jRetrieveQA error: {e!s}"
         # Try to extract the generated Cypher from intermediate steps if available
         try:
             interm = res.get("intermediate_steps", []) if 'res' in locals() else []
@@ -800,7 +801,7 @@ def _neo4j_retrieveqa_run(args: Dict[str, Any]) -> str:
         return json.dumps({"error": error_msg, "question": question})
 
 ############
-def _extract_final(text: str) -> Optional[str]:
+def _extract_final(text: str) -> str | None:
     m = re.search(r"<final>(.*?)</final>", text, flags=re.DOTALL | re.IGNORECASE)
     return m.group(1).strip() if m else None
 
@@ -816,7 +817,7 @@ def _finalize_answer(text: str) -> str:
     lines = [ln.strip() for ln in stripped.splitlines() if ln.strip()]
     return lines[-1] if lines else stripped
 
-def solve_cot(state: GraphState) -> Dict[str, Any]:
+def solve_cot(state: GraphState) -> dict[str, Any]:
     params = state["scratch"]
     k = int(params.get("k", 1))
     temp = float(params.get("temperature", 0.2 if k == 1 else 0.7))
@@ -829,8 +830,8 @@ def solve_cot(state: GraphState) -> Dict[str, Any]:
             print("[ACE Thought][CoT]", thought.strip(), flush=True)
         cleaned = re.sub(r"<scratchpad>.*?</scratchpad>", "", text, flags=re.DOTALL)
         return {"answer": _finalize_answer(cleaned), "raw": text}
-    answers: List[str] = []
-    raws: List[str] = []
+    answers: list[str] = []
+    raws: list[str] = []
     for _ in range(k):
         resp = llm.chat(base_msgs, temperature=temp)
         text = resp["choices"][0]["message"]["content"]
@@ -847,16 +848,16 @@ def solve_cot(state: GraphState) -> Dict[str, Any]:
     chosen = next(a for a in answers if norm(a) == best_norm)
     return {"answer": chosen, "raw_samples": raws}
 
-def solve_tot(state: GraphState) -> Dict[str, Any]:
+def solve_tot(state: GraphState) -> dict[str, Any]:
     params = state["scratch"]
     breadth = int(params.get("breadth", 3))
     depth = int(params.get("depth", 2))
     temp = float(params.get("temperature", 0.2))
     llm = LLM(temperature=temp)
     user = next((m["content"] for m in state["messages"] if m["role"] == "user"), "")
-    beam: List[Tuple[str, float]] = [("", 0.0)]
+    beam: list[tuple[str, float]] = [("", 0.0)]
     for d in range(depth):
-        candidates: List[Tuple[str, float]] = []
+        candidates: list[tuple[str, float]] = []
         for scratchpad, _ in beam:
             sys = (
                 "You are exploring solution trees. Expand concise next-steps. "
@@ -873,7 +874,7 @@ def solve_tot(state: GraphState) -> Dict[str, Any]:
             ]
             exp = llm.chat(msgs, temperature=max(0.7, temp))
             text = exp["choices"][0]["message"]["content"] or ""
-            next_thoughts: List[str] = []
+            next_thoughts: list[str] = []
             try:
                 j = json.loads(text)
                 if isinstance(j, dict) and isinstance(j.get("thoughts"), list):
@@ -921,7 +922,7 @@ def solve_tot(state: GraphState) -> Dict[str, Any]:
     return {"answer": _finalize_answer(text), "scratchpad": best_pad}
 
 
-def solve_react(state: GraphState) -> Dict[str, Any]:
+def solve_react(state: GraphState) -> dict[str, Any]:
     params = state["scratch"]
     max_turns = int(params.get("max_turns", 8))  # Increased from 6 to 8
     temp = float(params.get("temperature", 0.2))

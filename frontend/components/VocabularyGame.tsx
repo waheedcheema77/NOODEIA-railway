@@ -749,7 +749,7 @@ export default function VocabularyGame({
                       currentUser={currentUser}
                       xpGain={xpGain}
                       key={xpUpdateKey}
-                      onLevelUp={(newLevel, oldLevel) => {
+                      onLevelUp={(newLevel: number, oldLevel: number) => {
                         // Level up
                       }}
                     />
@@ -841,7 +841,7 @@ export default function VocabularyGame({
                       currentUser={currentUser}
                       xpGain={xpGain}
                       key={xpUpdateKey}
-                      onLevelUp={(newLevel, oldLevel) => {
+                      onLevelUp={(newLevel: number, oldLevel: number) => {
                         // Level up
                       }}
                     />
@@ -943,7 +943,7 @@ export default function VocabularyGame({
                       currentUser={currentUser}
                       xpGain={xpGain}
                       key={xpUpdateKey}
-                      onLevelUp={(newLevel, oldLevel) => {
+                      onLevelUp={(newLevel: number, oldLevel: number) => {
                         // Level up
                       }}
                     />
@@ -1021,7 +1021,7 @@ export default function VocabularyGame({
                       currentUser={currentUser}
                       xpGain={xpGain}
                       key={xpUpdateKey}
-                      onLevelUp={(newLevel, oldLevel) => {
+                      onLevelUp={(newLevel: number, oldLevel: number) => {
                         // Level up
                       }}
                     />

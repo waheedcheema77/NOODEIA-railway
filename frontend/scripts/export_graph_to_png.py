@@ -12,9 +12,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
+    import os
+
     from frontend.scripts.langgraph_agent_ace import build_ace_graph
     from IPython.display import Image, display
-    import os
 
     print("🎨 Generating LangGraph workflow visualization...")
 
