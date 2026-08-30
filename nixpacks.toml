@@ -11,7 +11,7 @@ cmds = [
 [phases.build]
 cmds = ["cd frontend && NODE_OPTIONS='--max-old-space-size=8192' npm run build"]
 
-# 🔥 THE FIX: Declare variables in the designated block so BOTH Node and Python see them!
+# Declare variables in the designated block so BOTH Node and Python see them!
 [variables]
 PYTHONPATH = "/app/vendor"
 PYTHON_PATH = "python3"
