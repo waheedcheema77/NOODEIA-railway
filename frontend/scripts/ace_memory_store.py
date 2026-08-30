@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import os
 import threading
-import atexit
 from typing import Any
 
 from neo4j import GraphDatabase
@@ -41,17 +40,6 @@ def _get_driver():
         if _DRIVER is None:
             _DRIVER = GraphDatabase.driver(uri, auth=(user, password))
     return _DRIVER
-
-
-def _close_driver():
-    """Close the global Neo4j driver on exit."""
-    global _DRIVER
-    with _DRIVER_LOCK:
-        if _DRIVER is not None:
-            _DRIVER.close()
-            _DRIVER = None
-
-atexit.register(_close_driver)
 
 
 def _get_database() -> str | None:

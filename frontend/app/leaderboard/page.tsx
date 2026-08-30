@@ -230,7 +230,7 @@ export default function LeaderboardPage() {
                   top3.find(r => r.rank === 2),
                   top3.find(r => r.rank === 1),
                   top3.find(r => r.rank === 3)
-                ].filter((r): r is LeaderboardRank => r !== undefined); // Remove undefined entries if a rank is missing
+                ].filter(Boolean); // Remove undefined entries if a rank is missing
                 
                 return ordered.map((rankEntry) => (
                   <Top3Card
@@ -354,7 +354,7 @@ export default function LeaderboardPage() {
 
         {/* User's Rank Card - Always shown at bottom */}
         {userRank ? (
-          <PuffyCard color="purple" size="md" className="mb-8" onClick={() => {}}>
+          <PuffyCard color="purple" size="md" className="mb-8">
             <div className="text-center">
               <div className="text-sm font-bold text-purple-700 mb-2">Your Rank</div>
               <div className="mb-2">
@@ -373,7 +373,7 @@ export default function LeaderboardPage() {
             </div>
           </PuffyCard>
         ) : (
-          <PuffyCard color="purple" size="md" className="mb-8" onClick={() => {}}>
+          <PuffyCard color="purple" size="md" className="mb-8">
             <div className="text-center">
               <div className="text-sm font-bold text-purple-700 mb-2">Your Rank</div>
               <AnimatedRank rank={null} className="text-2xl" />
