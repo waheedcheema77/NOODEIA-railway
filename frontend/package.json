@@ -7,7 +7,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start",
+    "start": "bash start.sh",
     "setup-neo4j": "node scripts/setup-neo4j.js",
     "setup-groupchat": "node scripts/setup-groupchat.js",
     "setup-markdown": "node scripts/setup-markdown.js",

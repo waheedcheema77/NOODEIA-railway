@@ -429,16 +429,19 @@ export default function AIAssistantUI() {
         console.error('AI response error:', aiError)
         setIsThinking(false)
         // Show error message to user
-        const errorMsg = await databaseAdapter.createChat(convId, 'assistant', 'Sorry, I encountered an error. Please try again.')
-        if (errorMsg) {
-          setConversations(prev =>
-            prev.map(conv => {
-              if (conv.id !== convId) return conv
-              const messages = [...(conv.messages || []), errorMsg]
-              return { ...conv, messages, updated_at: new Date().toISOString() }
-            })
-          )
+        const errorMsg = {
+          id: 'error_' + Math.random().toString(36).slice(2),
+          role: 'assistant',
+          content: 'Sorry, I encountered an error. Please try again.',
+          created_at: new Date().toISOString()
         }
+        setConversations(prev =>
+          prev.map(conv => {
+            if (conv.id !== convId) return conv
+            const messages = [...(conv.messages || []), errorMsg]
+            return { ...conv, messages, updated_at: new Date().toISOString() }
+          })
+        )
       }
     } catch (error) {
       console.error('Failed to send message:', error)
@@ -556,16 +559,19 @@ export default function AIAssistantUI() {
         console.error('AI response error:', aiError)
         setIsThinking(false)
         // Show error message
-        const errorMsg = await databaseAdapter.createChat(conversation.id, 'assistant', 'Sorry, I encountered an error. Please try again.')
-        if (errorMsg) {
-          setConversations(prev =>
-            prev.map(conv => {
-              if (conv.id !== conversation.id) return conv
-              const messages = [...(conv.messages || []), errorMsg]
-              return { ...conv, messages, updated_at: new Date().toISOString() }
-            })
-          )
+        const errorMsg = {
+          id: 'error_' + Math.random().toString(36).slice(2),
+          role: 'assistant',
+          content: 'Sorry, I encountered an error. Please try again.',
+          created_at: new Date().toISOString()
         }
+        setConversations(prev =>
+          prev.map(conv => {
+            if (conv.id !== conversation.id) return conv
+            const messages = [...(conv.messages || []), errorMsg]
+            return { ...conv, messages, updated_at: new Date().toISOString() }
+          })
+        )
       }
     } catch (error) {
       console.error('Failed to update message:', error)
@@ -674,16 +680,19 @@ export default function AIAssistantUI() {
         console.error('AI response error:', aiError)
         setIsThinking(false)
         // Show error message
-        const errorMsg = await databaseAdapter.createChat(conversation.id, 'assistant', 'Sorry, I encountered an error. Please try again.')
-        if (errorMsg) {
-          setConversations(prev =>
-            prev.map(conv => {
-              if (conv.id !== conversation.id) return conv
-              const messages = [...(conv.messages || []), errorMsg]
-              return { ...conv, messages, updated_at: new Date().toISOString() }
-            })
-          )
+        const errorMsg = {
+          id: 'error_' + Math.random().toString(36).slice(2),
+          role: 'assistant',
+          content: 'Sorry, I encountered an error. Please try again.',
+          created_at: new Date().toISOString()
         }
+        setConversations(prev =>
+          prev.map(conv => {
+            if (conv.id !== conversation.id) return conv
+            const messages = [...(conv.messages || []), errorMsg]
+            return { ...conv, messages, updated_at: new Date().toISOString() }
+          })
+        )
       }
     } catch (error) {
       console.error('Failed to resend message:', error)

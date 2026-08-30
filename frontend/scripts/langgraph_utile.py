@@ -199,7 +199,7 @@ def get_conversation_memory(memory_file: str = "conversation_memory.json") -> Co
 
 class GraphState(TypedDict):
     messages: list[dict[str, Any]]
-    mode: Literal["cot", "tot", "react"]
+    mode: Literal["cot", "tot", "react", "chat"]
     scratch: dict[str, Any]
     result: dict[str, Any]
 
@@ -816,6 +816,22 @@ def _finalize_answer(text: str) -> str:
         return ""
     lines = [ln.strip() for ln in stripped.splitlines() if ln.strip()]
     return lines[-1] if lines else stripped
+
+def solve_chat(state: GraphState) -> dict[str, Any]:
+    params = state["scratch"]
+    temp = float(params.get("temperature", 0.7))
+    llm = LLM(temperature=temp)
+    
+    user_name = params.get("name") or params.get("user_name", "Student")
+    user_level = params.get("level") or params.get("user_level", "Unknown")
+    
+    system_prompt = f"You are a friendly AI tutor. You are chatting with {user_name}, who is at {user_level} level. Keep your answers brief, friendly, and encouraging. Do not use complex tools or scratchpads."
+    
+    messages = [{"role": "system", "content": system_prompt}] + state["messages"]
+    resp = llm.chat(messages, temperature=temp)
+    content = resp["choices"][0]["message"]["content"]
+    
+    return {"answer": content, "raw": content}
 
 def solve_cot(state: GraphState) -> dict[str, Any]:
     params = state["scratch"]

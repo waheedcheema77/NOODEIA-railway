@@ -159,8 +159,18 @@ def router_node(state: GraphState) -> GraphState:
     # Store bullets in scratch for use by other nodes
     state.setdefault("scratch", {})["ace_bullets"] = [b.to_dict() for b in relevant_bullets]
 
-    # Check for Neo4j/database queries
-    if any(w in normalized_text for w in ["chapter", "unit", "textbook", "quiz", "user", "session", "group", "message", "database", "graph"]) or any(w in normalized_text for w in ["calculate", "sum", "difference", "product", "ratio", "percent", "%", "number", "verify", "double check", "make sure", "confirm", "check if"]) or any(w in normalized_text for w in ["search", "web", "internet", "current", "latest", "trending", "news", "online", "look up", "find out", "recent", "today"]):
+    casual_greetings_pattern = r"\b(hello|hi|hey|how are you|good morning|what's up|whats up|greetings)\b"
+    is_greeting = bool(re.search(casual_greetings_pattern, normalized_text)) and len(normalized_text.split()) <= 8
+
+    math_subject_keywords = ["calculate", "sum", "difference", "product", "ratio", "percent", "%", "number", "verify", "double check", "make sure", "confirm", "check if", "math", "equation", "fraction", "geometry", "algebra", "science", "physics", "chemistry", "history", "geography", "subject"]
+    
+    is_react = any(w in normalized_text for w in math_subject_keywords) or \
+               any(w in normalized_text for w in ["chapter", "unit", "textbook", "quiz", "user", "session", "group", "message", "database", "graph"]) or \
+               any(w in normalized_text for w in ["search", "web", "internet", "current", "latest", "trending", "news", "online", "look up", "find out", "recent", "today"])
+
+    if is_greeting and not is_react:
+        state["mode"] = "chat"
+    elif is_react:
         state["mode"] = "react"
     # Check for tree-of-thought needs
     elif any(w in normalized_text for w in ["plan", "options", "steps", "strategy", "search space"]):
@@ -185,6 +195,8 @@ def planner_node(state: GraphState) -> GraphState:
         tool_schemas = [_calculator_schema(), _google_search_schema(), _neo4j_retrieveqa_schema()]
         scratch["tool_names"] = [t["function"]["name"] for t in tool_schemas]
         scratch.setdefault("temperature", 0.2)
+    elif mode == "chat":
+        scratch.setdefault("temperature", 0.7)
     elif mode == "cot":
         scratch.setdefault("k", 1)
         scratch.setdefault("temperature", 0.2 if scratch["k"] == 1 else 0.7)
@@ -280,7 +292,7 @@ def solver_node_with_ace(state: GraphState) -> GraphState:
             state["messages"] = messages
     
     # Call the original solver
-    from langgraph_utile import solve_cot, solve_react, solve_tot
+    from langgraph_utile import solve_cot, solve_react, solve_tot, solve_chat
     
     if mode == "cot":
         result = solve_cot(state)
@@ -288,6 +300,8 @@ def solver_node_with_ace(state: GraphState) -> GraphState:
         result = solve_tot(state)
     elif mode == "react":
         result = solve_react(state)
+    elif mode == "chat":
+        result = solve_chat(state)
     else:
         raise ValueError(f"Unknown mode: {mode}")
     
