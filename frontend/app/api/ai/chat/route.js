@@ -137,6 +137,8 @@ export async function POST(request) {
     if (process.env.PYTHONPATH) {
       pythonPathParts.push(process.env.PYTHONPATH)
     }
+    // Hardcode fallback path to the production virtual environment site-packages
+    pythonPathParts.push('/app/.venv/lib/python3.11/site-packages')
 
     const childEnv = {
       ...process.env,
