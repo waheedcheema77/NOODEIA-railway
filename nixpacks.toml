@@ -5,7 +5,8 @@ nixPkgs = ["nodejs_22", "python311", "python311Packages.pip"]
 [phases.install]
 cmds = [
     "cd frontend && npm install --legacy-peer-deps",
-    "pip install --break-system-packages -t /app/vendor -r frontend/requirements.txt"
+    "python3 -m venv /app/.venv",
+    "/app/.venv/bin/pip install -r frontend/requirements.txt"
 ]
 
 [phases.build]
@@ -13,8 +14,7 @@ cmds = ["cd frontend && NODE_OPTIONS='--max-old-space-size=8192' npm run build"]
 
 # Declare variables in the designated block so BOTH Node and Python see them!
 [variables]
-PYTHONPATH = "/app/vendor"
-PYTHON_PATH = "python3"
+PYTHON_PATH = "/app/.venv/bin/python"
 
 [start]
 cmd = "cd frontend && npm start"
