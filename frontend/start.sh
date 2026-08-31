@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ../scripts
-uvicorn server:app --host 0.0.0.0 --port 8000 &
-cd ../frontend
+cd scripts
+python -m uvicorn server:app --host 0.0.0.0 --port 8000 &
+cd ..
 npx next start -p $PORT
