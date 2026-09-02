@@ -50,7 +50,7 @@ class Neo4jService {
     if (!this.driver) {
       throw new Error('Neo4j driver not initialized. Check your environment variables.')
     }
-    return this.driver.session({ database: 'neo4j' })
+    return this.driver.session()
   }
 
   async verifyConnectivity() {
