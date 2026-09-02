@@ -2,9 +2,6 @@
 builder = "NIXPACKS"
 buildCommand = "cd frontend && npm install && npm run build && pip install -r requirements.txt"
 
-[build.nixpacks]
-providers = ["python", "node"]
-
 [deploy]
 startCommand = "cd frontend && npm start"
 restartPolicyType = "ON_FAILURE"
