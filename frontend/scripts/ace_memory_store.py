@@ -63,23 +63,12 @@ class Neo4jMemoryStore:
             with driver.session(database=self._database) as session:
                 record = session.run(
                     """
-                    MATCH (u:User {id: $userId})
-                    MERGE (u)-[:HAS_ACE_MEMORY]->(m:AceMemoryState)
-                    ON CREATE SET
-                        m.id = coalesce($memoryId, randomUUID()),
-                        m.memory_json = $emptyPayload,
-                        m.access_clock = 0,
-                        m.created_at = datetime(),
-                        m.updated_at = datetime()
+                    MATCH (u:User {id: $userId})-[:HAS_ACE_MEMORY]->(m:AceMemoryState)
                     RETURN m.memory_json AS memory_json,
                            m.access_clock AS access_clock
                     """,
                     {
                         "userId": self.learner_id,
-                        "memoryId": None,
-                        "emptyPayload": json.dumps(
-                            {"bullets": [], "access_clock": 0}, ensure_ascii=False
-                        ),
                     },
                 ).single()
                 if not record:

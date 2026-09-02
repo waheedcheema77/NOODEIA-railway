@@ -37,28 +37,24 @@ export async function PATCH(request) {
     const body = await request.json()
     const { iconType, iconEmoji, iconColor, userId: providedUserId } = body
 
-    // Try to get userId from the request body (if provided by frontend)
-    let userId = providedUserId
-
-    if (!userId) {
-      // Get auth header if available
-      const authHeader = request.headers.get('authorization')
-
-      if (authHeader) {
-        const token = authHeader.replace('Bearer ', '')
-        const { data: { user }, error } = await supabase.auth.getUser(token)
-
-        if (error || !user) {
-          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-        userId = user.id
-      }
+    // Get auth header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized: No token provided' }, { status: 401 })
     }
 
-    // If still no userId, return error
-    if (!userId) {
-      console.error('No user ID found in request')
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+
+    if (error || !user) {
+      return NextResponse.json({ error: 'Unauthorized: Invalid token' }, { status: 401 })
+    }
+
+    const userId = user.id
+
+    // Disallow updating another user's profile
+    if (providedUserId && providedUserId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Prepare updates object

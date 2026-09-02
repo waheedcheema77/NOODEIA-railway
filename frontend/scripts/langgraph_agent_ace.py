@@ -127,9 +127,9 @@ def router_node(state: GraphState) -> GraphState:
     scratch = state.setdefault("scratch", {})
     user_messages = [m.get("content", "") for m in state.get("messages", []) if m.get("role") == "user"]
     user_text = user_messages[-1] if user_messages else ""
-    full_user_text = " ".join(user_messages)
-    normalized_text = full_user_text.lower()
-    learner_id = scratch.get("learner_id")
+    normalized_text = user_text.lower()
+    learner_id = scratch.get("learner_id") or "guest"
+    scratch["learner_id"] = learner_id
     topic = scratch.get("topic") or _infer_topic(user_text)
     if topic:
         scratch["topic"] = topic
@@ -277,31 +277,27 @@ def solver_node_with_ace(state: GraphState) -> GraphState:
             context_parts.append("=" * 50)
             context = "\n".join(context_parts)
 
-            messages = state.get("messages", [])
-            context_injected = False
-            for i, msg in enumerate(messages):
-                if msg.get("role") == "system":
-                    messages[i]["content"] = f"{context}\n\n{msg['content']}"
-                    context_injected = True
-                    break
+            injected_messages = list(state.get("messages", []))
+            injected_messages.insert(0, {"role": "system", "content": context})
+            
+            solver_state = dict(state)
+            solver_state["messages"] = injected_messages
+        else:
+            solver_state = state
+    else:
+        solver_state = state
 
-            if not context_injected and messages:
-                if messages[0].get("role") == "user":
-                    messages[0]["content"] = f"{context}\n\n{messages[0]['content']}"
-
-            state["messages"] = messages
-    
     # Call the original solver
     from langgraph_utile import solve_cot, solve_react, solve_tot, solve_chat
     
     if mode == "cot":
-        result = solve_cot(state)
+        result = solve_cot(solver_state)
     elif mode == "tot":
-        result = solve_tot(state)
+        result = solve_tot(solver_state)
     elif mode == "react":
-        result = solve_react(state)
+        result = solve_react(solver_state)
     elif mode == "chat":
-        result = solve_chat(state)
+        result = solve_chat(solver_state)
     else:
         raise ValueError(f"Unknown mode: {mode}")
     
@@ -314,7 +310,7 @@ def critic_node(state: GraphState) -> GraphState:
     res = dict(state.get("result", {}))
     ans = str(res.get("answer", "")).strip()
     import re
-    m = re.search(r"Answer\s*[:\-]\s*(.*)$", ans, flags=re.IGNORECASE)
+    m = re.search(r"Answer\s*[:\-]\s*(.*)$", ans, flags=re.IGNORECASE | re.DOTALL)
     if m:
         ans = m.group(1).strip()
     from langgraph_utile import _extract_final
@@ -411,8 +407,10 @@ def build_ace_graph() -> any:
     graph.add_edge("critic", "ace_learning")  # Learn after getting result
     graph.add_edge("ace_learning", END)
     
-    checkpointer = MemorySaver()
-    app = graph.compile(checkpointer=checkpointer)
+    # app = graph.compile(checkpointer=checkpointer)
+    # MemorySaver causes memory leaks in a long-running FastAPI process
+    # because state is passed in full from the client.
+    app = graph.compile()
     return app
 
 

@@ -798,22 +798,28 @@ class App {
   }
 
   update() {
-    this.scroll.current = lerp(this.scroll.current, this.scroll.target, this.scroll.ease);
-    const direction = this.scroll.current > this.scroll.last ? 'right' : 'left';
-    if (this.medias) {
-      this.medias.forEach(media => media.update(this.scroll, direction));
-      let closest: Media | null = null;
-      let minDistance = Infinity;
-      this.medias.forEach(media => {
-        const distance = Math.abs(media.plane.position.x);
-        if (distance < minDistance) {
-          minDistance = distance;
-          closest = media;
-        }
-      });
-      this.activeMedia = closest;
+    const isIdle = Math.abs(this.scroll.current - this.scroll.target) < 0.001 && !this.isDown && !this.hasDrag;
+    
+    if (isIdle) {
+      this.scroll.current = this.scroll.target;
+    } else {
+      this.scroll.current = lerp(this.scroll.current, this.scroll.target, this.scroll.ease);
+      const direction = this.scroll.current > this.scroll.last ? 'right' : 'left';
+      if (this.medias) {
+        this.medias.forEach(media => media.update(this.scroll, direction));
+        let closest: Media | null = null;
+        let minDistance = Infinity;
+        this.medias.forEach(media => {
+          const distance = Math.abs(media.plane.position.x);
+          if (distance < minDistance) {
+            minDistance = distance;
+            closest = media;
+          }
+        });
+        this.activeMedia = closest;
+      }
+      this.renderer.render({ scene: this.scene, camera: this.camera });
     }
-    this.renderer.render({ scene: this.scene, camera: this.camera });
     this.scroll.last = this.scroll.current;
     this.raf = window.requestAnimationFrame(this.update.bind(this));
   }
@@ -875,10 +881,12 @@ interface CircularGalleryProps {
 }
 
 // Helper function to compare items by content (image URLs) instead of reference
-function itemsEqual(items1: GalleryItem[], items2: GalleryItem[]): boolean {
-  if (items1.length !== items2.length) return false;
-  return items1.every((item1, index) => {
-    const item2 = items2[index];
+function itemsEqual(items1?: GalleryItem[], items2?: GalleryItem[]): boolean {
+  const i1 = items1 || [];
+  const i2 = items2 || [];
+  if (i1.length !== i2.length) return false;
+  return i1.every((item1, index) => {
+    const item2 = i2[index];
     return item1.image === item2.image && item1.text === item2.text;
   });
 }
@@ -895,7 +903,7 @@ export default function CircularGallery({
 }: CircularGalleryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<App | null>(null);
-  const previousItemsRef = useRef<GalleryItem[]>([]);
+  const previousItemsRef = useRef<GalleryItem[] | undefined>([]);
   
   useEffect(() => {
     if (!containerRef.current) return;

@@ -33,7 +33,8 @@ from prompts.reasoning_prompts import (
     TOT_VALUE_TEMPLATE,
 )
 
-load_dotenv()
+ENV_PATH = PROJECT_ROOT / "frontend" / ".env.local"
+load_dotenv(dotenv_path=ENV_PATH)
 
 # ===================== Memory System =====================
 
@@ -225,8 +226,14 @@ class LLM:
                 parsed = {"output": raw_content}
         elif isinstance(raw_content, dict):
             parsed = raw_content
+        elif isinstance(raw_content, list):
+            parsed = {"output": raw_content}
         else:
             parsed = {"output": raw_content}
+            
+        if not isinstance(parsed, dict):
+            parsed = {"output": parsed}
+            
         return {"functionResponse": {"name": name or "tool", "response": parsed}}
 
     @staticmethod
@@ -267,13 +274,34 @@ class LLM:
                 role = "user"
 
             if role == "assistant":
-                contents.append({"role": "model", "parts": self._text_parts(content)})
+                parts = []
+                if content:
+                    parts.extend(self._text_parts(content))
+                tool_calls = msg.get("tool_calls") or []
+                for tc in tool_calls:
+                    fn = tc.get("function") or {}
+                    name = fn.get("name")
+                    if name:
+                        try:
+                            args = json.loads(fn.get("arguments", "{}"))
+                        except:
+                            args = {}
+                        parts.append({"functionCall": {"name": name, "args": args}})
+                if not parts:
+                    parts = self._text_parts("")
+                contents.append({"role": "model", "parts": parts})
             elif role == "tool":
                 name = msg.get("name") or msg.get("tool_name") or msg.get("tool_call_id") or "tool"
                 part = self._tool_response_part(name, content)
-                contents.append({"role": "user", "parts": [part]})
+                if contents and contents[-1]["role"] == "user":
+                    contents[-1]["parts"].append(part)
+                else:
+                    contents.append({"role": "user", "parts": [part]})
             else:
-                contents.append({"role": "user", "parts": self._text_parts(content)})
+                if contents and contents[-1]["role"] == "user":
+                    contents[-1]["parts"].extend(self._text_parts(content))
+                else:
+                    contents.append({"role": "user", "parts": self._text_parts(content)})
 
         return system_instruction, contents
 
@@ -393,6 +421,7 @@ def _eval_node(node):
         ast.Pow: operator.pow,
         ast.Mod: operator.mod,
         ast.USub: operator.neg,  # Unary minus
+        ast.UAdd: operator.pos,  # Unary plus
     }
 
     if isinstance(node, ast.Constant):  # Python 3.8+
@@ -519,7 +548,7 @@ def _google_search_run(args: dict[str, Any]) -> str:
     if not query:
         return "GoogleSearch error: missing 'query'."
     
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     cse_id = os.getenv("GOOGLE_CSE_ID")
     
     if not api_key:
@@ -758,15 +787,17 @@ def _neo4j_retrieveqa_run(args: dict[str, Any]) -> str:
         cypher = ""
         context = []
         
-        if isinstance(interm, list) and len(interm) > 0:
-            # intermediate_steps is typically a list of dicts or a dict
-            if isinstance(interm[0], dict):
-                cypher = interm[0].get("query", "")
-                context = interm[0].get("context", [])
-            else:
-                # Sometimes it's a flat list: [query_string, context_list]
-                cypher = str(interm[0]) if len(interm) > 0 else ""
-                context = interm[1] if len(interm) > 1 else []
+        if isinstance(interm, list):
+            for step in interm:
+                if isinstance(step, dict):
+                    if "query" in step and not cypher:
+                        cypher = step.get("query", "")
+                    if "context" in step and not context:
+                        context = step.get("context", [])
+                elif isinstance(step, str) and not cypher:
+                    cypher = step
+                elif isinstance(step, list) and not context:
+                    context = step
         elif isinstance(interm, dict):
             cypher = interm.get("query", "")
             context = interm.get("context", [])
@@ -883,10 +914,8 @@ def solve_tot(state: GraphState) -> dict[str, Any]:
             msgs = [
                 {"role": "system", "content": sys},
                 {"role": "user", "content": user},
-                {
-                    "role": "assistant",
-                    "content": f"<partial>{scratchpad}</partial>\n{expand_prompt}",
-                },
+                {"role": "assistant", "content": f"<partial>{scratchpad}</partial>"},
+                {"role": "user", "content": expand_prompt},
             ]
             exp = llm.chat(msgs, temperature=max(0.7, temp))
             text = exp["choices"][0]["message"]["content"] or ""
@@ -911,7 +940,8 @@ def solve_tot(state: GraphState) -> dict[str, Any]:
                 val_msgs = [
                     {"role": "system", "content": "You are a strict evaluator."},
                     {"role": "user", "content": user},
-                    {"role": "assistant", "content": f"<partial>{new_pad}</partial>\n{TOT_VALUE_TEMPLATE}"},
+                    {"role": "assistant", "content": f"<partial>{new_pad}</partial>"},
+                    {"role": "user", "content": TOT_VALUE_TEMPLATE},
                 ]
                 val = llm.chat(val_msgs, temperature=0.0)
                 score_text = val["choices"][0]["message"]["content"] or "5"
@@ -928,7 +958,8 @@ def solve_tot(state: GraphState) -> dict[str, Any]:
     final_msgs = [
         {"role": "system", "content": COT_PROMPT},
         {"role": "user", "content": user},
-        {"role": "assistant", "content": f"<scratchpad>{best_pad}</scratchpad>\nNow conclude."},
+        {"role": "assistant", "content": f"<scratchpad>{best_pad}</scratchpad>"},
+        {"role": "user", "content": "Now conclude."},
     ]
     fin = llm.chat(final_msgs, temperature=0.0)
     text = fin["choices"][0]["message"]["content"]

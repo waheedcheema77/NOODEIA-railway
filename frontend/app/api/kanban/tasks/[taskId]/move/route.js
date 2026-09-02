@@ -1,15 +1,5 @@
 import { NextResponse } from 'next/server';
-import neo4j from 'neo4j-driver';
-
-// Initialize Neo4j driver
-const driver = neo4j.driver(
-  process.env.NEXT_PUBLIC_NEO4J_URI,
-  neo4j.auth.basic(
-    process.env.NEXT_PUBLIC_NEO4J_USERNAME,
-    process.env.NEXT_PUBLIC_NEO4J_PASSWORD
-  ),
-  { disableLosslessIntegers: true }
-);
+import { neo4jService } from '@/lib/neo4j';
 
 // PATCH /api/kanban/tasks/[taskId]/move - Move task to different column
 export async function PATCH(request, { params }) {
@@ -25,7 +15,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    const session = driver.session();
+    const session = neo4jService.getSession();
 
     try {
       // Update task status and set completedAt if moving to done

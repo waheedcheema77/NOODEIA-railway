@@ -64,11 +64,11 @@ export default function GachaOrb({ nodeType, onOpen }: GachaOrbProps) {
             key={i}
             className="absolute rounded-full"
             style={{
-              width: Math.random() * 4 + 2 + 'px',
-              height: Math.random() * 4 + 2 + 'px',
+              width: ((i * 13) % 4) + 2 + 'px',
+              height: ((i * 17) % 4) + 2 + 'px',
               backgroundColor: colors.particles,
-              left: Math.random() * 100 + '%',
-              top: Math.random() * 100 + '%',
+              left: ((i * 31) % 100) + '%',
+              top: ((i * 43) % 100) + '%',
             }}
             animate={{
               y: [0, -20, 0],
@@ -76,9 +76,9 @@ export default function GachaOrb({ nodeType, onOpen }: GachaOrbProps) {
               scale: [0.8, 1.2, 0.8],
             }}
             transition={{
-              duration: 3 + Math.random() * 2,
+              duration: 3 + ((i * 19) % 2),
               repeat: Infinity,
-              delay: Math.random() * 2,
+              delay: ((i * 23) % 2),
               ease: 'easeInOut',
             }}
           />

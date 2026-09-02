@@ -53,7 +53,7 @@ class Bullet:
     def __post_init__(self):
         """Generate ID from content if not provided"""
         if not self.id:
-            self.id = self._generate_id(self.content)
+            self.id = self._generate_id(self.content, self.topic, self.memory_type, self.learner_id)
         # Initialize strengths if none provided
         all_zero = (
             self.semantic_strength == 0.0
@@ -91,9 +91,15 @@ class Bullet:
         self.content_hash = self.content_hash or self._compute_hash(self.content)
     
     @staticmethod
-    def _generate_id(content: str) -> str:
-        """Generate unique ID from content"""
+    def _generate_id(content: str, topic: str | None = None, memory_type: str | None = None, learner_id: str | None = None) -> str:
+        """Generate unique ID from content and metadata"""
         normalized = content.lower().strip()
+        if topic:
+            normalized += f"|{topic.lower()}"
+        if memory_type:
+            normalized += f"|{memory_type.lower()}"
+        if learner_id:
+            normalized += f"|{learner_id.lower()}"
         return hashlib.md5(normalized.encode()).hexdigest()[:12]
 
     @staticmethod
@@ -447,8 +453,8 @@ class ACEMemory:
         created_a = self._parse_created_at(a)
         created_b = self._parse_created_at(b)
         if created_a >= created_b:
-            return a, b
-        return b, a
+            return b, a
+        return a, b
 
     def _merge_bullet_into(self, keep: Bullet, drop: Bullet):
         """Merge the drop bullet's metadata into the canonical keep bullet."""
@@ -720,6 +726,12 @@ class ACEMemory:
             
             for j in range(i + 1, len(bullets_list)):
                 if bullets_list[j].id in to_remove:
+                    continue
+                
+                # Do not deduplicate across different topics or learners
+                if bullets_list[i].topic != bullets_list[j].topic:
+                    continue
+                if bullets_list[i].learner_id != bullets_list[j].learner_id:
                     continue
                 
                 # Simple text similarity (can use embeddings for better results)

@@ -37,9 +37,11 @@ export default function LeaderboardPage() {
 
   // Refetch leaderboard when timeframe or type changes
   useEffect(() => {
+    const controller = new AbortController();
     if (user?.id) {
-      fetchLeaderboard(user.id);
+      fetchLeaderboard(user.id, controller.signal);
     }
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe, leaderboardType, user?.id]);
 
@@ -77,39 +79,42 @@ export default function LeaderboardPage() {
         return;
       }
       setUser(session.user);
-      await fetchLeaderboard(session.user.id);
     } catch (error) {
       console.error('Auth error:', error);
       router.push('/login');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const fetchLeaderboard = async (userId: string) => {
+  const fetchLeaderboard = async (userId: string, signal?: AbortSignal) => {
     try {
       setLoading(true);
       const url = `/api/leaderboard?userId=${userId}&timeframe=${timeframe}&type=${leaderboardType}`;
       console.log('🔄 Fetching leaderboard:', { timeframe, type: leaderboardType, url });
-      const response = await fetch(url);
+      const response = await fetch(url, { signal });
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Leaderboard data received:', { 
-          timeframe: data.timeframe, 
-          type: data.type,
-          rankingsCount: data.rankings?.length,
-          totalUsers: data.totalUsers 
-        });
-        setRankings(data.rankings || []);
-        setUserRank(data.userRank);
-        setTotalUsers(data.totalUsers);
+        if (!signal?.aborted) {
+          console.log('✅ Leaderboard data received:', { 
+            timeframe: data.timeframe, 
+            type: data.type,
+            rankingsCount: data.rankings?.length,
+            totalUsers: data.totalUsers 
+          });
+          setRankings(data.rankings || []);
+          setUserRank(data.userRank);
+          setTotalUsers(data.totalUsers);
+        }
       } else {
         console.error('❌ Leaderboard fetch failed:', response.status, response.statusText);
       }
-    } catch (error) {
-      console.error('❌ Failed to fetch leaderboard:', error);
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error('❌ Failed to fetch leaderboard:', error);
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   };
 

@@ -7,7 +7,18 @@ import Header from "./Header"
 import ChatPane from "./ChatPane"
 import MarkdownPanel from "./MarkdownPanel"
 import { supabase } from "../lib/supabase"
-import { databaseAdapter } from "../lib/database-adapter"
+import {
+  getUserByIdAction,
+  createUserAction,
+  getUserSessionsAction,
+  getSessionChatsAction,
+  createSessionAction,
+  updateSessionTitleAction,
+  deleteSessionAction,
+  createChatAction,
+  updateChatAction,
+  deleteChatAction
+} from "../app/actions/database"
 
 export default function AIAssistantUI() {
   const router = useRouter()
@@ -67,7 +78,7 @@ export default function AIAssistantUI() {
       if (!authChecked) return
 
       if (event === 'SIGNED_IN' && session) {
-        let userData = await databaseAdapter.getUserById(session.user.id)
+        let userData = await getUserByIdAction(session.user.id)
 
         // If user doesn't exist in Neo4j, create them
         if (!userData) {
@@ -76,7 +87,7 @@ export default function AIAssistantUI() {
                          userEmail.split('@')[0] ||
                          'User'
 
-          userData = await databaseAdapter.createUser(
+          userData = await createUserAction(
             session.user.id,
             userEmail,
             userName
@@ -100,7 +111,7 @@ export default function AIAssistantUI() {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (session) {
-        let userData = await databaseAdapter.getUserById(session.user.id)
+        let userData = await getUserByIdAction(session.user.id)
 
         // If user doesn't exist in Neo4j, create them
         if (!userData) {
@@ -109,7 +120,7 @@ export default function AIAssistantUI() {
                          userEmail.split('@')[0] ||
                          'User'
 
-          userData = await databaseAdapter.createUser(
+          userData = await createUserAction(
             session.user.id,
             userEmail,
             userName
@@ -167,13 +178,7 @@ export default function AIAssistantUI() {
   async function handleLogout() {
     setIsLoading(true)
     await supabase.auth.signOut()
-    setIsAuthenticated(false)
-    setCurrentUser(null)
-    setUserId(null)
-    setAuthToken(null)
-    setConversations([])
-    setSelectedId(null)
-    setIsLoading(false)
+    window.location.href = '/login'
   }
 
   async function handleUpdateUser(updatedUser) {
@@ -202,14 +207,14 @@ export default function AIAssistantUI() {
 
   async function loadConversations(uid) {
     try {
-      const sessions = await databaseAdapter.getUserSessions(uid)
+      const sessions = await getUserSessionsAction(uid)
 
       if (!sessions || sessions.length === 0) {
         createNewChat()
       } else {
         const conversationsWithChats = await Promise.all(
           sessions.map(async (session) => {
-            const chats = await databaseAdapter.getSessionChats(session.id)
+            const chats = await getSessionChatsAction(session.id)
             return {
               ...session,
               messages: chats || []
@@ -229,7 +234,7 @@ export default function AIAssistantUI() {
     if (!userId || !isAuthenticated) return
 
     try {
-      const newSession = await databaseAdapter.createSession(userId, 'New Chat')
+      const newSession = await createSessionAction(userId, 'New Chat')
       const newConversation = { ...newSession, messages: [] }
       setConversations(prev => [newConversation, ...prev])
       setSelectedId(newConversation.id)
@@ -241,7 +246,7 @@ export default function AIAssistantUI() {
 
   async function renameConversation(convId, newTitle) {
     try {
-      await databaseAdapter.updateSessionTitle(convId, newTitle)
+      await updateSessionTitleAction(convId, newTitle)
       setConversations(prev =>
         prev.map(conv =>
           conv.id === convId ? { ...conv, title: newTitle } : conv
@@ -254,7 +259,7 @@ export default function AIAssistantUI() {
 
   async function deleteConversation(convId) {
     try {
-      await databaseAdapter.deleteSession(convId)
+      await deleteSessionAction(convId)
       setConversations(prev => prev.filter(conv => conv.id !== convId))
       if (selectedId === convId) {
         setSelectedId(null)
@@ -342,7 +347,7 @@ export default function AIAssistantUI() {
     )
 
     try {
-      const savedMsg = await databaseAdapter.createChat(convId, 'user', content)
+      const savedMsg = await createChatAction(convId, 'user', content)
 
       // Replace temp message with saved one
       if (savedMsg) {
@@ -408,7 +413,7 @@ export default function AIAssistantUI() {
         )
 
         // Save to database in background and replace temp message
-        const assistantMsg = await databaseAdapter.createChat(convId, 'assistant', assistantContent)
+        const assistantMsg = await createChatAction(convId, 'assistant', assistantContent)
 
         if (assistantMsg) {
           setConversations(prev =>
@@ -466,12 +471,12 @@ export default function AIAssistantUI() {
     if (messageIndex === -1) return
 
     try {
-      await databaseAdapter.updateChat(messageId, content)
+      await updateChatAction(messageId, content)
 
       const messagesToDelete = conversation.messages.slice(messageIndex + 1)
       if (messagesToDelete.length > 0) {
         for (const msg of messagesToDelete) {
-          await databaseAdapter.deleteChat(msg.id)
+          await deleteChatAction(msg.id)
         }
       }
 
@@ -538,7 +543,7 @@ export default function AIAssistantUI() {
         )
 
         // Save to database in background and replace temp message
-        const assistantMsg = await databaseAdapter.createChat(conversation.id, 'assistant', assistantContent)
+        const assistantMsg = await createChatAction(conversation.id, 'assistant', assistantContent)
 
         if (assistantMsg) {
           setConversations(prev =>
@@ -592,7 +597,7 @@ export default function AIAssistantUI() {
       const messagesToDelete = conversation.messages.slice(messageIndex + 1)
       if (messagesToDelete.length > 0) {
         for (const msg of messagesToDelete) {
-          await databaseAdapter.deleteChat(msg.id)
+          await deleteChatAction(msg.id)
         }
       }
 
@@ -659,7 +664,7 @@ export default function AIAssistantUI() {
         )
 
         // Save to database in background and replace temp message
-        const assistantMsg = await databaseAdapter.createChat(conversation.id, 'assistant', assistantContent)
+        const assistantMsg = await createChatAction(conversation.id, 'assistant', assistantContent)
 
         if (assistantMsg) {
           setConversations(prev =>

@@ -1,15 +1,5 @@
 import { NextResponse } from 'next/server';
-import neo4j from 'neo4j-driver';
-
-// Initialize Neo4j driver
-const driver = neo4j.driver(
-  process.env.NEXT_PUBLIC_NEO4J_URI,
-  neo4j.auth.basic(
-    process.env.NEXT_PUBLIC_NEO4J_USERNAME,
-    process.env.NEXT_PUBLIC_NEO4J_PASSWORD
-  ),
-  { disableLosslessIntegers: true }
-);
+import { neo4jService } from '@/lib/neo4j';
 
 // GET /api/kanban/tasks - Get all tasks for a user
 export async function GET(request) {
@@ -21,7 +11,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
-    const session = driver.session();
+    const session = neo4jService.getSession();
 
     try {
       // Get all tasks for user, ordered by creation date
@@ -74,7 +64,7 @@ export async function POST(request) {
       );
     }
 
-    const session = driver.session();
+    const session = neo4jService.getSession();
 
     try {
       const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

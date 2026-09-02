@@ -40,6 +40,10 @@ let currentAudio = null
 
 // Simple TTS using gTTS via text2audio.py
 export async function text2audio(text) {
+  if (!text) {
+    console.warn("No text to convert to audio");
+    return;
+  }
   try {
     // Stop any currently playing audio
     if (currentAudio) {

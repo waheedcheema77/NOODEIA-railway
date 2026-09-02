@@ -45,10 +45,13 @@ export default function Composer({ onSend, busy, xpGain, xpTrigger }) {
     e?.preventDefault()
     if (!value.trim() || sending || busy) return
     
+    const currentVal = value
+    setValue("")
     setSending(true)
     try {
-      await onSend(value)
-      setValue("")
+      await onSend(currentVal)
+    } catch (error) {
+      setValue(currentVal)
     } finally {
       setSending(false)
     }
@@ -88,6 +91,7 @@ export default function Composer({ onSend, busy, xpGain, xpTrigger }) {
               <button
                 type="submit"
                 disabled={disabled}
+                aria-label="Send message"
                 className={`rounded-xl p-2 text-white transition-all disabled:opacity-50`}
                 style={{
                   background: 'linear-gradient(135deg, rgba(68, 13, 15, 0.3), rgba(68, 13, 15, 0.1))',

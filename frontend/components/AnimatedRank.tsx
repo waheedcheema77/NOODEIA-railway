@@ -221,8 +221,8 @@ export default function AnimatedRank({ rank, className = '' }: AnimatedRankProps
               animate={{
                 opacity: [0, 1, 0],
                 scale: [0, 1, 0],
-                x: Math.cos((i * Math.PI * 2) / (rank === 1 ? 12 : rank === 2 ? 8 : 6)) * (30 + Math.random() * 20),
-                y: Math.sin((i * Math.PI * 2) / (rank === 1 ? 12 : rank === 2 ? 8 : 6)) * (30 + Math.random() * 20),
+                x: Math.cos((i * Math.PI * 2) / (rank === 1 ? 12 : rank === 2 ? 8 : 6)) * (30 + ((i * 13) % 20)),
+                y: Math.sin((i * Math.PI * 2) / (rank === 1 ? 12 : rank === 2 ? 8 : 6)) * (30 + ((i * 17) % 20)),
               }}
               exit={{ opacity: 0 }}
               transition={{

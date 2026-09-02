@@ -10,8 +10,8 @@ export async function POST(req) {
     const formData = await req.formData()
     const audioFile = formData.get('audio')
     
-    if (!audioFile) {
-      return NextResponse.json({ error: 'No audio file provided' }, { status: 400 })
+    if (!audioFile || typeof audioFile.arrayBuffer !== 'function') {
+      return NextResponse.json({ error: 'No valid audio file provided' }, { status: 400 })
     }
 
     const geminiApiKey = process.env.GEMINI_API_KEY

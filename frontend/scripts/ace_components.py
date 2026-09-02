@@ -278,6 +278,7 @@ class Curator:
         learner_id: str | None = None,
         topic: str | None = None,
         facets: dict[str, Any] | None = None,
+        success: bool = True,
     ) -> DeltaUpdate:
         delta = DeltaUpdate()
         similarity_threshold = float(os.getenv("ACE_CURATOR_SIMILARITY", "0.9"))
@@ -294,7 +295,10 @@ class Curator:
             )
             if existing_bullet:
                 entry = delta.update_bullets.setdefault(existing_bullet.id, {"helpful": 0, "harmful": 0})
-                entry["helpful"] += 1
+                if success:
+                    entry["helpful"] += 1
+                else:
+                    entry["harmful"] += 1
                 print(
                     f"[Curator][Heuristic Reinforce] id={existing_bullet.id} content={content}",
                     flush=True,
@@ -310,12 +314,14 @@ class Curator:
 
             normalized_tags = self._normalise_tags(tags)
 
-            helpful = 1
+            helpful = 1 if success else 0
+            harmful = 0 if success else 1
             bullet = Bullet(
                 id="",
                 content=content,
                 tags=normalized_tags,
                 helpful_count=helpful,
+                harmful_count=harmful,
                 learner_id=learner_id,
                 topic=topic,
                 concept=concept,
@@ -365,6 +371,7 @@ class Curator:
         learner_id: str | None = None,
         topic: str | None = None,
         facets: dict[str, Any] | None = None,
+        success: bool = True,
         **_: Any,
     ) -> DeltaUpdate:
         """
@@ -405,7 +412,7 @@ class Curator:
         
         if not use_llm:
             print("[Curator] Using heuristic delta generation (LLM disabled).", flush=True)
-            delta = self._lessons_to_delta(lessons, learner_id=learner_id, topic=topic, facets=facets)
+            delta = self._lessons_to_delta(lessons, learner_id=learner_id, topic=topic, facets=facets, success=success)
             delta.metadata.update({
                 "reasoning": "heuristic_lessons_to_bullets",
                 "prompt": prompt,
@@ -458,7 +465,7 @@ class Curator:
 
         if not delta_data:
             print("[Curator] Falling back to deterministic delta generation", flush=True)
-            fallback = self._lessons_to_delta(lessons, learner_id=learner_id, topic=topic, facets=facets)
+            fallback = self._lessons_to_delta(lessons, learner_id=learner_id, topic=topic, facets=facets, success=success)
             fallback.metadata.update({
                 "reasoning": "fallback_from_unparsed_curator",
                 "num_lessons": len(lessons),
@@ -481,8 +488,8 @@ class Curator:
                 id="",  # Will be auto-generated
                 content=bullet_data["content"],
                 tags=tags,
-                helpful_count=int(helpful) if helpful is not None else 1,
-                harmful_count=int(harmful) if harmful is not None else 0,
+                helpful_count=int(helpful) if helpful is not None else (1 if success else 0),
+                harmful_count=int(harmful) if harmful is not None else (0 if success else 1),
                 learner_id=bullet_data.get("learner_id") or learner_id,
                 topic=bullet_data.get("topic") or topic,
                 concept=bullet_data.get("concept"),
@@ -612,7 +619,7 @@ class ACEPipeline:
         # Step 2: Curator creates delta update
         print("[ACE Pipeline] Step 2: Curating delta update...")
         facets = scratch_state.get("ace_retrieval_facets") if isinstance(scratch_state, dict) else None
-        delta = self.curator.curate(lessons, trace.question, learner_id=learner_id, topic=topic, facets=facets)
+        delta = self.curator.curate(lessons, trace.question, learner_id=learner_id, topic=topic, facets=facets, success=trace.success)
 
         print(f"[ACE Pipeline] Created delta: {len(delta.new_bullets)} new, "
               f"{len(delta.update_bullets)} updates, {len(delta.remove_bullets)} removals")

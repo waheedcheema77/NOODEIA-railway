@@ -29,7 +29,7 @@ export default function Sidebar({
   const [editTitle, setEditTitle] = useState("")
 
   const sortedConversations = [...conversations].sort((a, b) =>
-    new Date(b.updatedAt) - new Date(a.updatedAt)
+    new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
   )
 
   const handleStartEdit = (conversation) => {

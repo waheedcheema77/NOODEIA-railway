@@ -1,15 +1,5 @@
 import { NextResponse } from 'next/server';
-import neo4j from 'neo4j-driver';
-
-// Initialize Neo4j driver
-const driver = neo4j.driver(
-  process.env.NEXT_PUBLIC_NEO4J_URI,
-  neo4j.auth.basic(
-    process.env.NEXT_PUBLIC_NEO4J_USERNAME,
-    process.env.NEXT_PUBLIC_NEO4J_PASSWORD
-  ),
-  { disableLosslessIntegers: true }
-);
+import { neo4jService } from '@/lib/neo4j';
 
 // DELETE /api/kanban/tasks/[taskId] - Delete a task
 export async function DELETE(request, { params }) {
@@ -22,7 +12,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
-    const session = driver.session();
+    const session = neo4jService.getSession();
 
     try {
       // Delete task (verify ownership)

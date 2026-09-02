@@ -51,7 +51,7 @@ export async function PUT(request, { params }) {
   } catch (error) {
     console.error('Error editing message:', error)
     return NextResponse.json(
-      { error: 'Failed to edit message' },
+      { error: error.message || 'Failed to edit message' },
       { status: 500 }
     )
   }
@@ -86,7 +86,7 @@ export async function DELETE(request, { params }) {
   } catch (error) {
     console.error('Error deleting message:', error)
     return NextResponse.json(
-      { error: 'Failed to delete message' },
+      { error: error.message || 'Failed to delete message' },
       { status: 500 }
     )
   }

@@ -96,7 +96,12 @@ def chat_endpoint(payload: ChatPayload):
 
         return response
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        import traceback
+        import uuid
+        error_id = str(uuid.uuid4())
+        print(f"Error [{error_id}] in chat_endpoint:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error. Reference ID: {error_id}")
 
 
 if __name__ == "__main__":

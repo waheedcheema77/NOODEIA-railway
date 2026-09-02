@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import gsap from 'gsap';
 import { supabase } from '@/lib/supabase';
+import { checkAnswerAction } from '@/app/actions/quiz';
 import { PuffyCard } from '@/components/PuffyComponents';
 import {
   ArrowLeft,
@@ -36,13 +37,13 @@ export default function QuizPage() {
   // Quiz state
   const [sessionId, setSessionId] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<number[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [highestStreak, setHighestStreak] = useState(0); // Track highest streak in this quiz
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [currentCorrectAnswer, setCurrentCorrectAnswer] = useState<number | null>(null);
 
   // Saved quiz state
   const [hasSavedQuiz, setHasSavedQuiz] = useState(false);
@@ -58,6 +59,17 @@ export default function QuizPage() {
   const rewardCard1Ref = useRef<HTMLDivElement>(null);
   const rewardCard2Ref = useRef<HTMLDivElement>(null);
   const rewardCard3Ref = useRef<HTMLDivElement>(null);
+
+  // Ref for cleanup of state-updating timeouts to prevent memory leaks
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     checkAuth();
@@ -122,13 +134,13 @@ export default function QuizPage() {
       userId: user.id,
       sessionId,
       questions,
-      answers,
       currentQuestionIndex,
       score,
       streak,
       highestStreak,
       selectedAnswer,  // Save answer state to prevent re-answering same question
       isCorrect,       // Save correctness state to prevent re-answering same question
+      currentCorrectAnswer,
       timestamp: Date.now()
     };
 
@@ -165,7 +177,6 @@ export default function QuizPage() {
       // Restore quiz state
       setSessionId(quizState.sessionId);
       setQuestions(quizState.questions);
-      setAnswers(quizState.answers);
       setCurrentQuestionIndex(quizState.currentQuestionIndex);
       setScore(quizState.score);
       setStreak(quizState.streak);
@@ -173,6 +184,7 @@ export default function QuizPage() {
       // IMPORTANT: Restore answered state to prevent answering same question twice
       setSelectedAnswer(quizState.selectedAnswer || null);
       setIsCorrect(quizState.isCorrect !== undefined ? quizState.isCorrect : null);
+      setCurrentCorrectAnswer(quizState.currentCorrectAnswer !== undefined ? quizState.currentCorrectAnswer : null);
       setGameState('quiz');
       setHasSavedQuiz(false);
     } catch (error) {
@@ -233,17 +245,16 @@ export default function QuizPage() {
       const data = await response.json();
       const newSessionId = data.sessionId;
       const newQuestions = data.questions;
-      const newAnswers = data._answers;
 
       setSessionId(newSessionId);
       setQuestions(newQuestions);
-      setAnswers(newAnswers); // Store correct answers
       setCurrentQuestionIndex(0);
       setScore(0);
       setStreak(0);
       setHighestStreak(0); // Reset highest streak for new quiz
       setSelectedAnswer(null);
       setIsCorrect(null);
+      setCurrentCorrectAnswer(null);
       setGameState('quiz');
 
       // Save quiz state immediately (even before first question answered)
@@ -253,13 +264,13 @@ export default function QuizPage() {
           userId: user.id,
           sessionId: newSessionId,
           questions: newQuestions,
-          answers: newAnswers,
           currentQuestionIndex: 0,
           score: 0,
           streak: 0,
           highestStreak: 0,
           selectedAnswer: null,  // Initially no answer selected
           isCorrect: null,       // Initially no correctness status
+          currentCorrectAnswer: null,
           timestamp: Date.now()
         };
         try {
@@ -288,12 +299,24 @@ export default function QuizPage() {
     return "Math Tip: Take your time and break the problem into smaller, easier steps. Practice makes perfect!";
   };
 
-  const handleAnswer = (answer: number) => {
+  const handleAnswer = async (answer: number) => {
     if (selectedAnswer !== null) return;
 
     setSelectedAnswer(answer);
-    const correct = answer === answers[currentQuestionIndex];
+    
+    // Check answer securely against backend
+    const result = await checkAnswerAction(sessionId, currentQuestionIndex, answer);
+    if (!result) {
+      alert("Error checking answer. Please try again.");
+      setSelectedAnswer(null);
+      return;
+    }
+    
+    const correct = result.correct;
     setIsCorrect(correct);
+    if (!correct) {
+      setCurrentCorrectAnswer(result.correctAnswer);
+    }
 
     // Calculate the final score (current score + 1 if this answer is correct)
     const finalScore = correct ? score + 1 : score;
@@ -329,7 +352,7 @@ export default function QuizPage() {
 
       // Correct answer: move to next after 1.5s
       if (currentQuestionIndex < questions.length - 1) {
-        setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           setCurrentQuestionIndex(prev => prev + 1);
           setSelectedAnswer(null);
           setIsCorrect(null);
@@ -344,14 +367,14 @@ export default function QuizPage() {
 
       if (currentQuestionIndex < questions.length - 1) {
         // Delay before next question (show explanation for 20 seconds)
-        setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           setCurrentQuestionIndex(prev => prev + 1);
           setSelectedAnswer(null);
           setIsCorrect(null);
         }, 20000);
       } else {
         // Last question - still show explanation before ending
-        setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           endQuiz(finalScore);
         }, 20000);
       }
@@ -360,20 +383,23 @@ export default function QuizPage() {
 
   const endQuiz = async (finalScore?: number) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       // Use the passed finalScore to avoid state timing issues, fall back to state score if not provided
       const scoreToSubmit = finalScore !== undefined ? finalScore : score;
 
       // Submit quiz to backend (nodeType is determined by performance on backend)
       const response = await fetch('/api/quiz/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: JSON.stringify({
           userId: user?.id,
           sessionId,
           score: scoreToSubmit,
           totalQuestions: questions.length,
-          streak: highestStreak, // Send highest streak achieved, not ending streak
-          answers
+          streak: highestStreak // Send highest streak achieved, not ending streak
         })
       });
 
@@ -714,7 +740,7 @@ export default function QuizPage() {
                         ? isCorrect
                           ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-[0_8px_24px_rgba(34,197,94,0.5)] border-2 border-green-400'
                           : 'bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-[0_8px_24px_rgba(239,68,68,0.5)] border-2 border-red-400'
-                        : selectedAnswer !== null && option === answers[currentQuestionIndex]
+                        : selectedAnswer !== null && option === currentCorrectAnswer
                         ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-[0_8px_24px_rgba(34,197,94,0.5)] border-2 border-green-400'
                         : 'glass-button glass-button-light hover:scale-105'
                     }`}
@@ -756,7 +782,7 @@ export default function QuizPage() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-gray-700 font-semibold">Correct answer:</span>
-                          <span className="text-2xl font-black text-green-600">{answers[currentQuestionIndex]}</span>
+                          <span className="text-2xl font-black text-green-600">{currentCorrectAnswer}</span>
                         </div>
                       </div>
 

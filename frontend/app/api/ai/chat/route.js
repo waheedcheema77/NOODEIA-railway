@@ -136,10 +136,12 @@ export async function POST(request) {
       payload.thread_id = threadId
     }
 
-    const res = await fetch('http://127.0.0.1:8000/chat', {
+    console.log('Sending message to FastAPI backend...')
+    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000'
+    const res = await fetch(`${backendUrl}/chat`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload)
     })

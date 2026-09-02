@@ -19,41 +19,40 @@ export default function ThreadPanel({
   const [replyContent, setReplyContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [totalRepliesLoaded, setTotalRepliesLoaded] = useState(0)
   const repliesEndRef = useRef(null)
+  const repliesContainerRef = useRef(null)
   const pusherRef = useRef(null)
+  const isFetchingMoreRef = useRef(false)
 
   useEffect(() => {
     loadReplies()
-    setupPusher()
+    const cleanupPusher = setupPusher()
 
     return () => {
       // Don't unsubscribe - the channel is shared with GroupChat
       // Just unbind this component's event handlers
-      if (pusherRef.current) {
-        const channel = pusherRef.current.channel(`group-${groupId}`)
-        if (channel) {
-          channel.unbind(PUSHER_EVENTS.MESSAGE_SENT)
-          channel.unbind(PUSHER_EVENTS.MESSAGE_EDITED)
-          channel.unbind(PUSHER_EVENTS.MESSAGE_DELETED)
-        }
+      if (cleanupPusher) {
+        cleanupPusher()
       }
     }
   }, [parentMessage.id])
 
   const setupPusher = () => {
     const pusher = getPusherClient()
-    if (!pusher) return
+    if (!pusher) return null
 
     pusherRef.current = pusher
 
     // Get or subscribe to the channel (don't unsubscribe, it's shared with GroupChat)
-    let channel = pusher.channel(`group-${groupId}`)
+    let channel = pusher.channel(`private-group-${groupId}`)
     if (!channel) {
-      channel = pusher.subscribe(`group-${groupId}`)
+      channel = pusher.subscribe(`private-group-${groupId}`)
     }
 
-    // Listen for new messages in this thread
-    channel.bind(PUSHER_EVENTS.MESSAGE_SENT, (data) => {
+    const onMessageSent = (data) => {
       // Only add if it's a reply to our parent message
       if (data.parentId === parentMessage.id) {
         // Check if message already exists (avoid duplicates for own messages)
@@ -66,26 +65,68 @@ export default function ThreadPanel({
         })
         scrollToBottom()
       }
-    })
+    }
 
-    // Listen for edited messages in this thread
-    channel.bind(PUSHER_EVENTS.MESSAGE_EDITED, (data) => {
+    const onMessageEdited = (data) => {
       setReplies(prev =>
         prev.map(msg =>
           msg.id === data.messageId ? { ...msg, content: data.newContent, edited: true } : msg
         )
       )
-    })
+    }
 
-    // Listen for deleted messages in this thread
-    channel.bind(PUSHER_EVENTS.MESSAGE_DELETED, (data) => {
+    const onMessageDeleted = (data) => {
       setReplies(prev => prev.filter(msg => msg.id !== data.messageId))
-    })
+    }
+
+    let hasConnected = false
+    const onConnected = () => {
+      if (hasConnected) {
+        console.log('Pusher reconnected! Resyncing replies...')
+        fetch(`/api/groupchat/${groupId}/messages/${parentMessage.id}/thread?limit=20&skip=0`, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+          const repliesArray = Array.isArray(data) ? data : []
+          const newReplies = repliesArray.reverse()
+          
+          setReplies(prev => {
+            const merged = [...prev, ...newReplies]
+            const map = new Map()
+            merged.forEach(msg => map.set(msg.id, msg))
+            return Array.from(map.values()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+          })
+        })
+        .catch(err => console.error('Failed to resync replies:', err))
+      }
+      hasConnected = true
+    }
+    
+    if (pusher.connection) {
+      pusher.connection.bind('connected', onConnected)
+    }
+
+    // Listen for new messages in this thread
+    channel.bind(PUSHER_EVENTS.MESSAGE_SENT, onMessageSent)
+    // Listen for edited messages in this thread
+    channel.bind(PUSHER_EVENTS.MESSAGE_EDITED, onMessageEdited)
+    // Listen for deleted messages in this thread
+    channel.bind(PUSHER_EVENTS.MESSAGE_DELETED, onMessageDeleted)
+
+    return () => {
+      if (pusher.connection) {
+        pusher.connection.unbind('connected', onConnected)
+      }
+      channel.unbind(PUSHER_EVENTS.MESSAGE_SENT, onMessageSent)
+      channel.unbind(PUSHER_EVENTS.MESSAGE_EDITED, onMessageEdited)
+      channel.unbind(PUSHER_EVENTS.MESSAGE_DELETED, onMessageDeleted)
+    }
   }
 
-  const loadReplies = async () => {
+  const loadReplies = async (skip = 0) => {
     try {
-      const response = await fetch(`/api/groupchat/${groupId}/messages/${parentMessage.id}/thread`, {
+      const response = await fetch(`/api/groupchat/${groupId}/messages/${parentMessage.id}/thread?limit=50&skip=${skip}`, {
         headers: {
           Authorization: `Bearer ${authToken}`
         }
@@ -94,13 +135,65 @@ export default function ThreadPanel({
       if (!response.ok) throw new Error('Failed to load thread')
 
       const data = await response.json()
-      setReplies(data)
+      const repliesArray = Array.isArray(data) ? data : []
+      // The API now returns newest first (DESC) so we must reverse for chronological view
+      const newReplies = repliesArray.reverse()
+
+      if (skip === 0) {
+        setReplies(newReplies)
+        setTotalRepliesLoaded(repliesArray.length)
+        setTimeout(scrollToBottom, 0)
+      } else {
+        const container = repliesContainerRef.current
+        const scrollHeightBefore = container?.scrollHeight || 0
+        const scrollTopBefore = container?.scrollTop || 0
+
+        setReplies(prev => [...newReplies, ...prev])
+        setTotalRepliesLoaded(prev => prev + repliesArray.length)
+
+        setTimeout(() => {
+          if (container) {
+            const scrollHeightAfter = container.scrollHeight
+            const addedHeight = scrollHeightAfter - scrollHeightBefore
+            container.scrollTop = scrollTopBefore + addedHeight
+          }
+        }, 0)
+      }
+
+      setHasMore(repliesArray.length === 50)
     } catch (error) {
       console.error('Failed to load thread:', error)
+      if (skip === 0) setReplies([])
     } finally {
-      setLoading(false)
+      if (skip === 0) setLoading(false)
+      else setLoadingMore(false)
+      isFetchingMoreRef.current = false
     }
   }
+
+  const loadMoreReplies = async () => {
+    if (loadingMore || !hasMore || isFetchingMoreRef.current) return
+
+    isFetchingMoreRef.current = true
+    setLoadingMore(true)
+    
+    await loadReplies(totalRepliesLoaded)
+  }
+
+  // Detect scroll to top
+  useEffect(() => {
+    const container = repliesContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      if (container.scrollTop < 100 && hasMore && !loadingMore) {
+        loadMoreReplies()
+      }
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [hasMore, loadingMore, totalRepliesLoaded])
 
   const sendReply = async () => {
     if (!replyContent.trim() || sending) return
@@ -199,7 +292,7 @@ export default function ThreadPanel({
         </div>
 
         {/* Replies */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div ref={repliesContainerRef} className="flex-1 overflow-y-auto p-4">
         {loading ? (
           <div className="flex items-center justify-center text-zinc-500 dark:text-zinc-400">
             Loading replies...
@@ -210,6 +303,11 @@ export default function ThreadPanel({
           </div>
         ) : (
           <>
+            {loadingMore && (
+              <div className="flex items-center justify-center py-2 text-sm text-zinc-500 dark:text-zinc-400">
+                Loading more replies...
+              </div>
+            )}
             {replies.map((reply) => (
               <ThreadedMessage
                 key={reply.id}

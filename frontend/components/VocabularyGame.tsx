@@ -405,17 +405,20 @@ export default function VocabularyGame({
 
       if (wordItem && emojiItem && wordItem.word === emojiItem.word) {
         // Correct match!
-        setMatchedPairs([...matchedPairs, wordItem.word]);
+        setMatchedPairs(prev => {
+          const newPairs = [...prev, wordItem.word];
+          // Check if all matched
+          if (newPairs.length === matchWords.length) {
+            setTimeout(() => {
+              initMatchGame();
+            }, 1500);
+          }
+          return newPairs;
+        });
+        
         const xpReward = Math.floor(Math.random() * 4) + 2; // 2-5 XP
         triggerConfetti();
         awardXP(xpReward);
-
-        // Check if all matched
-        if (matchedPairs.length + 1 === matchWords.length) {
-          setTimeout(() => {
-            initMatchGame();
-          }, 1500);
-        }
       } else {
         // Incorrect - show try again modal
         setShowTryAgain(true);
@@ -473,22 +476,25 @@ export default function VocabularyGame({
       if (memoryCards[first].pairId === memoryCards[second].pairId) {
         // Match found!
         setTimeout(() => {
-          const updatedCards = [...memoryCards];
-          updatedCards[first].isMatched = true;
-          updatedCards[second].isMatched = true;
-          setMemoryCards(updatedCards);
+          setMemoryCards(prevCards => {
+            const updatedCards = [...prevCards];
+            updatedCards[first].isMatched = true;
+            updatedCards[second].isMatched = true;
+
+            // Check if all matched
+            if (updatedCards.every(card => card.isMatched)) {
+              setTimeout(() => {
+                initMemoryGame();
+              }, 1500);
+            }
+            return updatedCards;
+          });
+
           setFlippedCards([]);
           setCanFlip(true);
-          const xpReward = Math.floor(Math.random() * 4) + 8; // 8-11 XP
+          const xpReward = Math.floor(((first * 13) % 4)) + 8; // deterministic pseudo random
           triggerConfetti();
           awardXP(xpReward);
-
-          // Check if all matched
-          if (updatedCards.every(card => card.isMatched)) {
-            setTimeout(() => {
-              initMemoryGame();
-            }, 1500);
-          }
         }, 500);
       } else {
         // No match - show try again modal

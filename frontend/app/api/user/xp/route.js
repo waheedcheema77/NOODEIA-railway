@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server"
-import neo4j from "neo4j-driver"
+import { neo4j, neo4jService } from "@/lib/neo4j"
 import { v4 as uuidv4 } from "uuid"
 import { getLevelFromXP } from "../../../../utils/levelingSystem"
 
-// Initialize Neo4j driver
-const driver = neo4j.driver(
-  process.env.NEXT_PUBLIC_NEO4J_URI,
-  neo4j.auth.basic(
-    process.env.NEXT_PUBLIC_NEO4J_USERNAME,
-    process.env.NEXT_PUBLIC_NEO4J_PASSWORD
-  ),
-  { disableLosslessIntegers: true }
-)
-
 export async function POST(request) {
-  const session = driver.session()
+  const session = neo4jService.getSession()
 
   try {
     // Get the user ID from the request body or auth
@@ -159,7 +149,7 @@ export async function POST(request) {
 }
 
 export async function GET(request) {
-  const session = driver.session()
+  const session = neo4jService.getSession()
 
   try {
     // Get userId from query params

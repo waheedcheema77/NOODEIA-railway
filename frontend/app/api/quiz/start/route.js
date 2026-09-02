@@ -65,6 +65,8 @@ function generateQuestion() {
 // POST /api/quiz/start
 // Body: { userId }
 // Response: { sessionId, questions }
+import { neo4jService } from '@/lib/neo4j'
+
 export async function POST(request) {
   try {
     const body = await request.json()
@@ -82,16 +84,27 @@ export async function POST(request) {
 
     // Create session ID
     const sessionId = uuidv4()
+    const answers = questions.map(q => q.answer)
+
+    const session = neo4jService.getSession()
+    try {
+      await session.run(
+        `MERGE (qs:QuizSession {id: $sessionId})
+         SET qs.userId = $userId,
+             qs.answers = $answers,
+             qs.startedAt = datetime()`,
+        { sessionId, userId, answers }
+      )
+    } finally {
+      await session.close()
+    }
 
     return NextResponse.json({
       sessionId,
       questions: questions.map(q => ({
         question: q.question,
         options: q.options,
-        // Don't send answer to client - keep it server-side for validation
-      })),
-      // Store answers for validation (in production, use session storage or database)
-      _answers: questions.map(q => q.answer) // Temporary - will validate on submit
+      }))
     }, { status: 200 })
 
   } catch (error) {

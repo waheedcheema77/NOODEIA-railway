@@ -24,9 +24,15 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const limit = parseInt(searchParams.get('limit') || '50', 10)
+    const skip = parseInt(searchParams.get('skip') || '0', 10)
+
     const threadMessages = await groupChatService.getThreadMessages(
       messageId,
-      user.id
+      user.id,
+      limit,
+      skip
     )
 
     return NextResponse.json(threadMessages)

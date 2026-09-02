@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
 import { neo4jService } from '@/lib/neo4j'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
 
 // FORCE RELOAD: 2025-01-30-01:35
 // POST /api/quiz/submit
@@ -9,8 +15,26 @@ export async function POST(request) {
   const session = neo4jService.getSession()
 
   try {
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized: No token provided' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized: Invalid token' }, { status: 401 })
+    }
+
+    const authenticatedUserId = user.id
+
     const body = await request.json()
     const { userId, sessionId, score, totalQuestions, streak, answers } = body
+
+    if (userId !== authenticatedUserId) {
+      return NextResponse.json({ error: 'Forbidden: Cannot submit quiz for another user' }, { status: 403 })
+    }
 
     if (!userId || !sessionId || score === undefined || totalQuestions === undefined) {
       return NextResponse.json(

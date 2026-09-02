@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import neo4j from 'neo4j-driver'
+import { neo4jService } from '@/lib/neo4j'
 import groupChatService from '../../../../../services/groupchat.service'
 import pusherService from '../../../../../services/pusher.service'
 
@@ -8,17 +8,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
-
-const driver = neo4j.driver(
-  process.env.NEXT_PUBLIC_NEO4J_URI,
-  neo4j.auth.basic(
-    process.env.NEXT_PUBLIC_NEO4J_USERNAME,
-    process.env.NEXT_PUBLIC_NEO4J_PASSWORD
-  ),
-  { disableLosslessIntegers: true }
-)
-
-
 export async function GET(request, { params }) {
   try {
     // Await params as required in Next.js 15
@@ -121,7 +110,7 @@ export async function POST(request, { params }) {
       // Import and call AI service directly to avoid HTTP self-calling issues
       import('../../../../../services/gemini.service').then(async ({ default: geminiService }) => {
         try {
-          const aiSession = driver.session()
+          const aiSession = neo4jService.getSession()
 
           // Fetch thread context
           const threadResult = await aiSession.run(
@@ -334,7 +323,7 @@ Message: ${parentMessage.content}`
   } catch (error) {
     console.error('Error sending message:', error)
     return NextResponse.json(
-      { error: 'Failed to send message' },
+      { error: error.message || 'Failed to send message' },
       { status: 500 }
     )
   }

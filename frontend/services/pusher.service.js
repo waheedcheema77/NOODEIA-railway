@@ -13,14 +13,14 @@ class PusherService {
 
     try {
       console.log('📤 Broadcasting message via Pusher:', {
-        channel: `group-${groupId}`,
+        channel: `private-group-${groupId}`,
         messageId: message.id,
         createdBy: message.createdBy,
         hasParentId: !!message.parentId
       })
 
       await this.pusher.trigger(
-        `group-${groupId}`,
+        `private-group-${groupId}`,
         PUSHER_EVENTS.MESSAGE_SENT,
         message
       )
@@ -36,7 +36,7 @@ class PusherService {
 
     try {
       await this.pusher.trigger(
-        `group-${groupId}`,
+        `private-group-${groupId}`,
         PUSHER_EVENTS.MESSAGE_EDITED,
         { messageId, newContent }
       )
@@ -50,7 +50,7 @@ class PusherService {
 
     try {
       await this.pusher.trigger(
-        `group-${groupId}`,
+        `private-group-${groupId}`,
         PUSHER_EVENTS.MESSAGE_DELETED,
         { messageId }
       )
@@ -64,7 +64,7 @@ class PusherService {
 
     try {
       await this.pusher.trigger(
-        `group-${groupId}`,
+        `private-group-${groupId}`,
         PUSHER_EVENTS.MEMBER_JOINED,
         { userId: user.id, userEmail: user.email }
       )
@@ -78,7 +78,7 @@ class PusherService {
 
     try {
       await this.pusher.trigger(
-        `group-${groupId}`,
+        `private-group-${groupId}`,
         PUSHER_EVENTS.MEMBER_LEFT,
         { userId }
       )
@@ -92,7 +92,7 @@ class PusherService {
 
     try {
       await this.pusher.trigger(
-        `group-${groupId}`,
+        `private-group-${groupId}`,
         PUSHER_EVENTS.TYPING,
         { userId, userName }
       )
@@ -106,7 +106,7 @@ class PusherService {
 
     try {
       await this.pusher.trigger(
-        `group-${groupId}`,
+        `private-group-${groupId}`,
         PUSHER_EVENTS.STOP_TYPING,
         { userId }
       )

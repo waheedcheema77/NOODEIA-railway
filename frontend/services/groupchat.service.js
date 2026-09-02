@@ -358,9 +358,12 @@ class GroupChatService {
     }
   }
 
-  async getThreadMessages(parentMessageId, userId) {
+  async getThreadMessages(parentMessageId, userId, limit = 50, skip = 0) {
     const session = neo4jClient.getSession()
     try {
+      const skipInt = neo4j.int(skip)
+      const limitInt = neo4j.int(limit)
+
       const result = await session.run(
         `
         MATCH (parent:Message {id: $parentMessageId})<-[:CONTAINS]-(g:GroupChat)
@@ -377,9 +380,11 @@ class GroupChatService {
                parentAuthor.name as parentAuthorName,
                parentAuthor.email as parentAuthorEmail,
                replyCount
-        ORDER BY m.createdAt ASC
+        ORDER BY m.createdAt DESC
+        SKIP $skip
+        LIMIT $limit
         `,
-        { parentMessageId, userId }
+        { parentMessageId, userId, skip: skipInt, limit: limitInt }
       )
 
       return result.records.map(record => {

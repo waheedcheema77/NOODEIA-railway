@@ -43,11 +43,12 @@ export default function GroupChat({ groupId, groupData, currentUser, authToken, 
 
   useEffect(() => {
     loadMessages()
-    setupPusher()
+    const cleanupPusher = setupPusher()
 
     return () => {
+      if (cleanupPusher) cleanupPusher()
       if (pusherRef.current) {
-        pusherRef.current.unsubscribe(`group-${groupId}`)
+        pusherRef.current.unsubscribe(`private-group-${groupId}`)
       }
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
@@ -57,18 +58,17 @@ export default function GroupChat({ groupId, groupData, currentUser, authToken, 
 
   const setupPusher = () => {
     const pusher = getPusherClient()
-    if (!pusher) return
+    if (!pusher) return null
 
     pusherRef.current = pusher
 
-    const existingChannel = pusher.channel(`group-${groupId}`)
-    if (existingChannel) {
-      pusher.unsubscribe(`group-${groupId}`)
-    }
+    // Unsubscribe from previous channel if exists
+    pusher.unsubscribe(`private-group-${groupId}`)
+    
+    // Subscribe to new channel
+    const channel = pusher.subscribe(`private-group-${groupId}`)
 
-    const channel = pusher.subscribe(`group-${groupId}`)
-
-    channel.bind(PUSHER_EVENTS.MESSAGE_SENT, (data) => {
+    const onMessageSent = (data) => {
       if (!data.parentId) {
         setMessages(prev => {
           // Check if this is the real version of an optimistic message (same content and creator)
@@ -105,32 +105,78 @@ export default function GroupChat({ groupId, groupData, currentUser, authToken, 
           )
         )
       }
-    })
+    }
 
-    channel.bind(PUSHER_EVENTS.MESSAGE_EDITED, (data) => {
+    const onMessageEdited = (data) => {
       setMessages(prev =>
         prev.map(msg =>
           msg.id === data.messageId ? { ...msg, content: data.newContent, edited: true } : msg
         )
       )
-    })
+    }
 
-    channel.bind(PUSHER_EVENTS.MESSAGE_DELETED, (data) => {
+    const onMessageDeleted = (data) => {
       setMessages(prev => prev.filter(msg => msg.id !== data.messageId))
-    })
+    }
 
-    channel.bind(PUSHER_EVENTS.TYPING, (data) => {
+    const onTyping = (data) => {
       if (data.userId !== currentUserRef.current.id) {
         setTypingUsers(prev => {
           const filtered = prev.filter(u => u.userId !== data.userId)
           return [...filtered, data]
         })
       }
-    })
+    }
 
-    channel.bind(PUSHER_EVENTS.STOP_TYPING, (data) => {
+    const onStopTyping = (data) => {
       setTypingUsers(prev => prev.filter(u => u.userId !== data.userId))
-    })
+    }
+
+    let hasConnected = false
+    const onConnected = () => {
+      if (hasConnected) {
+        console.log('Pusher reconnected! Resyncing messages...')
+        fetch(`/api/groupchat/${groupId}/messages?limit=20&skip=0`, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+          const messagesArray = Array.isArray(data) ? data : []
+          const topLevelMessages = messagesArray.filter(msg => !msg.parentId)
+          const newMessages = topLevelMessages.reverse()
+          
+          setMessages(prev => {
+            const merged = [...prev, ...newMessages]
+            const map = new Map()
+            merged.forEach(msg => map.set(msg.id, msg))
+            return Array.from(map.values()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+          })
+        })
+        .catch(err => console.error('Failed to resync:', err))
+      }
+      hasConnected = true
+    }
+    
+    if (pusher.connection) {
+      pusher.connection.bind('connected', onConnected)
+    }
+
+    channel.bind(PUSHER_EVENTS.MESSAGE_SENT, onMessageSent)
+    channel.bind(PUSHER_EVENTS.MESSAGE_EDITED, onMessageEdited)
+    channel.bind(PUSHER_EVENTS.MESSAGE_DELETED, onMessageDeleted)
+    channel.bind(PUSHER_EVENTS.TYPING, onTyping)
+    channel.bind(PUSHER_EVENTS.STOP_TYPING, onStopTyping)
+
+    return () => {
+      if (pusher.connection) {
+        pusher.connection.unbind('connected', onConnected)
+      }
+      channel.unbind(PUSHER_EVENTS.MESSAGE_SENT, onMessageSent)
+      channel.unbind(PUSHER_EVENTS.MESSAGE_EDITED, onMessageEdited)
+      channel.unbind(PUSHER_EVENTS.MESSAGE_DELETED, onMessageDeleted)
+      channel.unbind(PUSHER_EVENTS.TYPING, onTyping)
+      channel.unbind(PUSHER_EVENTS.STOP_TYPING, onStopTyping)
+    }
   }
 
   const loadMessages = async (skip = 0) => {
@@ -208,12 +254,20 @@ export default function GroupChat({ groupId, groupData, currentUser, authToken, 
     }
   }
 
-  const loadMoreMessages = async () => {
-    if (loadingMore || !hasMore) return
+  const isFetchingMoreRef = useRef(false)
 
+  const loadMoreMessages = async () => {
+    if (loadingMore || !hasMore || isFetchingMoreRef.current) return
+
+    isFetchingMoreRef.current = true
     setLoadingMore(true)
-    // Use totalMessagesLoaded instead of messages.length for correct skip value
-    await loadMessages(totalMessagesLoaded)
+    
+    try {
+      // Use totalMessagesLoaded instead of messages.length for correct skip value
+      await loadMessages(totalMessagesLoaded)
+    } finally {
+      isFetchingMoreRef.current = false
+    }
   }
 
   // Detect scroll to top
@@ -376,18 +430,23 @@ export default function GroupChat({ groupId, groupData, currentUser, authToken, 
     }
   }
 
+  const typingStatusRef = useRef(false)
+
   const handleTyping = () => {
     if (!pusherRef.current) return
 
-    // Notify typing
-    fetch('/api/pusher/typing', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`
-      },
-      body: JSON.stringify({ groupId })
-    })
+    // Only send the typing event if we aren't already considered typing
+    if (!typingStatusRef.current) {
+      typingStatusRef.current = true
+      fetch('/api/pusher/typing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ groupId })
+      })
+    }
 
     // Clear existing timeout
     if (typingTimeoutRef.current) {
@@ -399,8 +458,9 @@ export default function GroupChat({ groupId, groupData, currentUser, authToken, 
   }
 
   const stopTyping = () => {
-    if (!pusherRef.current) return
+    if (!pusherRef.current || !typingStatusRef.current) return
 
+    typingStatusRef.current = false
     fetch('/api/pusher/typing/stop', {
       method: 'POST',
       headers: {

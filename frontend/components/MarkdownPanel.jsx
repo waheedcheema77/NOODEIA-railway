@@ -108,6 +108,9 @@ export default function MarkdownPanel({
     // Basic markdown to HTML conversion
     // In production, use a proper markdown parser like marked or remark
     let html = markdown
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
       .replace(/^### (.*$)/gim, '<h3>$1</h3>')
       .replace(/^## (.*$)/gim, '<h2>$1</h2>')
       .replace(/^# (.*$)/gim, '<h1>$1</h1>')

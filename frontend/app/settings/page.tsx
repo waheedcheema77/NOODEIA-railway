@@ -241,8 +241,8 @@ export default function SettingsPage() {
                         'User'
 
         // Create user in Neo4j via database adapter
-        const { neo4jDataService } = await import('@/services/neo4j.service')
-        const userData = await neo4jDataService.createUser(
+        const { createUserAction } = await import('@/app/actions/database')
+        const userData = await createUserAction(
           session.user.id,
           userEmail,
           userName
@@ -272,7 +272,7 @@ export default function SettingsPage() {
   const handleSignOut = async () => {
     try {
       await supabase.auth.signOut()
-      router.push('/login')
+      window.location.href = '/login'
     } catch (error) {
       console.error('Sign out error:', error)
       showNotification('Failed to sign out')
@@ -282,9 +282,13 @@ export default function SettingsPage() {
   const handleSaveAvatar = async () => {
     setIsSaving(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch('/api/user/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: JSON.stringify({
           userId: currentUser?.id,
           iconType,

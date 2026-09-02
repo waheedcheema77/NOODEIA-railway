@@ -11,15 +11,15 @@ class Neo4jService {
       return
     }
 
-    const uri = process.env.NEXT_PUBLIC_NEO4J_URI
-    const username = process.env.NEXT_PUBLIC_NEO4J_USERNAME
-    const password = process.env.NEXT_PUBLIC_NEO4J_PASSWORD
+    const uri = process.env.NEO4J_URI
+    const username = process.env.NEO4J_USERNAME
+    const password = process.env.NEO4J_PASSWORD
 
     if (!uri || !username || !password) {
       console.error('Neo4j credentials not configured. Missing:', {
-        uri: !uri ? 'NEXT_PUBLIC_NEO4J_URI' : 'ok',
-        username: !username ? 'NEXT_PUBLIC_NEO4J_USERNAME' : 'ok',
-        password: !password ? 'NEXT_PUBLIC_NEO4J_PASSWORD' : 'ok'
+        uri: !uri ? 'NEO4J_URI' : 'ok',
+        username: !username ? 'NEO4J_USERNAME' : 'ok',
+        password: !password ? 'NEO4J_PASSWORD' : 'ok'
       })
       return
     }
