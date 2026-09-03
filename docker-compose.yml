@@ -1,0 +1,27 @@
+services:
+  app:
+    build: .
+    restart: always
+    env_file:
+      - frontend/.env.local
+    expose:
+      - "3000"
+      - "8000"
+    ports:
+      - "3000:3000"
+
+  caddy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    command: caddy reverse-proxy --from athenai.devoriented.com --to app:3000
+
+volumes:
+  caddy_data:
+  caddy_config:
