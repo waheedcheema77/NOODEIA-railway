@@ -9,6 +9,8 @@ services:
       - "8000"
     ports:
       - "3000:3000"
+    environment:
+      - PYTHONPATH=/app/frontend/scripts
 
   caddy:
     image: caddy:2
