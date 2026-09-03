@@ -1,28 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('sb-access-token')?.value
+  // We bypass the strict cookie check here because Supabase stores the 
+  // session in localStorage and API routes use the Bearer token header.
+  // The client-side components (like AIAssistantUI) will handle redirecting 
+  // unauthorized users back to /login.
   
-  const isPublicRoute = 
-    request.nextUrl.pathname === '/' || 
-    request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/api/') || 
-    request.nextUrl.pathname.startsWith('/_next') ||
-    request.nextUrl.pathname.includes('.')
-
-  if (!token && !isPublicRoute) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  // If user is logged in and trying to access login page or root, redirect to home
-  if (token && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/')) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/home'
-    return NextResponse.redirect(redirectUrl)
-  }
-
   return NextResponse.next()
 }
 
