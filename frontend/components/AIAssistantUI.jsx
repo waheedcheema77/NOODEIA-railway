@@ -6,7 +6,6 @@ import Sidebar from "./Sidebar"
 import Header from "./Header"
 import ChatPane from "./ChatPane"
 import MarkdownPanel from "./MarkdownPanel"
-import { supabase } from "../lib/supabase"
 import {
   getUserByIdAction,
   createUserAction,
@@ -29,7 +28,6 @@ export default function AIAssistantUI() {
   const [authToken, setAuthToken] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
@@ -73,79 +71,40 @@ export default function AIAssistantUI() {
 
   useEffect(() => {
     checkAuth()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!authChecked) return
-
-      if (event === 'SIGNED_IN' && session) {
-        let userData = await getUserByIdAction(session.user.id)
-
-        // If user doesn't exist in Neo4j, create them
-        if (!userData) {
-          const userEmail = session.user.email || 'user@example.com'
-          const userName = session.user.user_metadata?.name ||
-                         userEmail.split('@')[0] ||
-                         'User'
-
-          userData = await createUserAction(
-            session.user.id,
-            userEmail,
-            userName
-          )
-        }
-
-        if (userData) {
-          await handleAuthSuccess(userData, session)
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setAuthToken(null)
-        setIsLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
   }, [])
 
   async function checkAuth() {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      let guestId = localStorage.getItem('guest_user_id')
+      if (!guestId) {
+        guestId = 'guest_' + Math.random().toString(36).substring(2, 15)
+        localStorage.setItem('guest_user_id', guestId)
+      }
 
-      if (session) {
-        let userData = await getUserByIdAction(session.user.id)
+      let userData = await getUserByIdAction(guestId)
 
-        // If user doesn't exist in Neo4j, create them
-        if (!userData) {
-          const userEmail = session.user.email || 'user@example.com'
-          const userName = session.user.user_metadata?.name ||
-                         userEmail.split('@')[0] ||
-                         'User'
+      // If user doesn't exist in Neo4j, create them
+      if (!userData) {
+        userData = await createUserAction(
+          guestId,
+          'guest@example.com',
+          'Guest Student'
+        )
+      }
 
-          userData = await createUserAction(
-            session.user.id,
-            userEmail,
-            userName
-          )
-        }
-
-        if (userData) {
-          await handleAuthSuccess(userData, session)
-        } else {
-          // Only fail authentication if we couldn't create the user
-          console.error('Failed to create user in database')
-          setIsLoading(false)
-        }
+      if (userData) {
+        await handleAuthSuccess(userData)
       } else {
+        console.error('Failed to create user in database')
         setIsLoading(false)
       }
-      setAuthChecked(true)
     } catch (error) {
       console.error('Failed to check auth:', error)
       setIsLoading(false)
-      setAuthChecked(true)
     }
   }
 
-  async function handleAuthSuccess(userData, session) {
+  async function handleAuthSuccess(userData) {
     // Fetch user's XP and level
     let xp = userData.xp || 0
     let level = userData.level || 1
@@ -166,9 +125,6 @@ export default function AIAssistantUI() {
       xp,
       level
     })
-    if (session?.access_token) {
-      setAuthToken(session.access_token)
-    }
     setUserId(userData.id)
     setIsAuthenticated(true)
     setIsLoading(false)
@@ -176,9 +132,8 @@ export default function AIAssistantUI() {
   }
 
   async function handleLogout() {
-    setIsLoading(true)
-    await supabase.auth.signOut()
-    window.location.href = '/login'
+    localStorage.removeItem('guest_user_id')
+    window.location.href = '/'
   }
 
   async function handleUpdateUser(updatedUser) {
@@ -190,19 +145,7 @@ export default function AIAssistantUI() {
   }
 
   async function getAccessToken() {
-    if (authToken) {
-      return authToken
-    }
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.access_token) {
-        setAuthToken(session.access_token)
-        return session.access_token
-      }
-    } catch (error) {
-      console.error('Failed to retrieve auth token:', error)
-    }
-    return null
+    return localStorage.getItem('guest_user_id')
   }
 
   async function loadConversations(uid) {
@@ -375,7 +318,7 @@ export default function AIAssistantUI() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
+            'X-User-Id': token
           },
           body: JSON.stringify({
             message: content,
@@ -504,7 +447,7 @@ export default function AIAssistantUI() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
+            'X-User-Id': token
           },
           body: JSON.stringify({
             message: content,
@@ -625,7 +568,7 @@ export default function AIAssistantUI() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
+            'X-User-Id': token
           },
           body: JSON.stringify({
             message: message.content,
@@ -718,13 +661,12 @@ export default function AIAssistantUI() {
     return () => window.removeEventListener("keydown", onKey)
   }, [sidebarOpen])
 
-  // Handle authentication redirect with useEffect to avoid render errors
-  // This must be called before any conditional returns to follow React's Rules of Hooks
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && authChecked) {
-      router.push('/login')
+    // If not loading and no user ID exists, reload
+    if (!isLoading && !isAuthenticated && !localStorage.getItem('guest_user_id')) {
+      window.location.reload()
     }
-  }, [isLoading, isAuthenticated, authChecked, router])
+  }, [isLoading, isAuthenticated])
 
   const selectedConversation = conversations.find(c => c.id === selectedId)
 

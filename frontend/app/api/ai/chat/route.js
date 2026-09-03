@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
-import { createClient } from '@supabase/supabase-js'
 import { neo4jService } from '../../../../lib/neo4j.js'
 
 async function ensureEnvLoaded() {
@@ -40,25 +39,15 @@ VALIDATION REQUESTS:
 
 IMPORTANT: Count the conversation turns to track which round you're in. Adjust your help level accordingly.`
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
-
 export async function POST(request) {
   try {
     await ensureEnvLoaded()
 
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = request.headers.get('x-user-id')
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized, missing X-User-Id' }, { status: 401 })
     }
-    const token = authHeader.replace('Bearer ', '').trim()
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const user = { id: userId }
 
     const body = await request.json()
     const { message, conversationHistory, conversationId } = body || {}

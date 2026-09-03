@@ -18,8 +18,6 @@ export const viewport: Viewport = {
   userScalable: false, // Disable zoom to prevent keyboard scaling issues
 }
 
-import { ClientAuth } from '@/components/ClientAuth'
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,7 +42,6 @@ html {
         `}</style>
       </head>
       <body suppressHydrationWarning style={{ backgroundColor: '#FDFBD4' }}>
-        <ClientAuth />
         {children}
       </body>
     </html>

@@ -26,7 +26,6 @@ import {
   ThinkingBubbles,
 } from "@/components/animated-graphics"
 import { LogoCarousel } from "@/components/LogoCarousel"
-import { supabase } from "@/lib/supabase"
 
 export default function HomePage() {
   const router = useRouter()
@@ -34,45 +33,13 @@ export default function HomePage() {
   const [userName, setUserName] = useState("")
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        setIsAuthenticated(!!session)
-        if (session?.user) {
-          // Get user name from metadata or email
-          const name = session.user.user_metadata?.name ||
-                       session.user.email?.split("@")[0] ||
-                       "User"
-          setUserName(name)
-        }
-      } catch (error) {
-        console.error("Error checking auth:", error)
-      }
-    }
-
-    checkAuth()
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => {
-      setIsAuthenticated(!!session)
-      if (session?.user) {
-        const name = session.user.user_metadata?.name ||
-                     session.user.email?.split("@")[0] ||
-                     "User"
-        setUserName(name)
-      }
-    })
-
-    return () => {
-      authListener.subscription.unsubscribe()
-    }
+    // No auth needed, users can proceed as guests
+    setIsAuthenticated(true)
+    setUserName("Student")
   }, [])
 
   const handleStartLearning = () => {
-    if (isAuthenticated) {
-      router.push("/home")
-    } else {
-      router.push("/login")
-    }
+    router.push("/home")
   }
   const features = [
     {
