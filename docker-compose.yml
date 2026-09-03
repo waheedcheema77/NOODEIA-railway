@@ -20,7 +20,7 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-    command: caddy reverse-proxy --from athenai.devoriented.com --to app:3000
+    command: caddy reverse-proxy --from :80 --to app:3000
 
 volumes:
   caddy_data:
