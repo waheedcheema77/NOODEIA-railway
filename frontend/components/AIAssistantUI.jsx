@@ -681,7 +681,7 @@ export default function AIAssistantUI() {
   if (!isAuthenticated) {
     return (
       <div className="flex h-screen items-center justify-center" style={{ backgroundColor: 'var(--app-bg)' }}>
-        <div className="text-zinc-600">Redirecting to login...</div>
+        <div className="text-zinc-600">Database connection failed. Please check server logs (500 Error).</div>
       </div>
     )
   }
