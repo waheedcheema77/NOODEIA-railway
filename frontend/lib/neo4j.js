@@ -86,7 +86,18 @@ class Neo4jService {
 
     const converted = {}
     for (const [key, value] of Object.entries(props)) {
-      converted[key] = this.toNumber(value)
+      if (value && typeof value === 'object') {
+        if ('toNumber' in value) {
+          converted[key] = value.toNumber()
+        } else if (value.year && value.month && value.day) {
+          // It's a Neo4j DateTime object, convert to string
+          converted[key] = value.toString()
+        } else {
+          converted[key] = value
+        }
+      } else {
+        converted[key] = value
+      }
     }
 
     return converted
