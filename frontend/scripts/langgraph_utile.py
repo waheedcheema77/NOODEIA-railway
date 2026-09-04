@@ -203,6 +203,7 @@ class GraphState(TypedDict):
     mode: Literal["cot", "tot", "react", "chat"]
     scratch: dict[str, Any]
     result: dict[str, Any]
+    model: str
 
 class LLM:
     def __init__(self, model: str = "gemini-2.5-flash", temperature: float = 0.2):
