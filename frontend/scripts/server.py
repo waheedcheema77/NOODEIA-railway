@@ -60,6 +60,7 @@ class ChatPayload(BaseModel):
     mode: Optional[str] = ""
     scratch: Optional[dict[str, Any]] = Field(default_factory=dict)
     thread_id: Optional[str] = None
+    model: Optional[str] = "gemini-2.5-flash"
 
 
 @app.post("/chat")
@@ -79,6 +80,7 @@ def chat_endpoint(payload: ChatPayload):
             "messages": messages,
             "mode": mode,
             "scratch": scratch,
+            "model": payload.model,
             "result": {},
         }
 

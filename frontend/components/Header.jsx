@@ -4,7 +4,7 @@ import { Menu, FileText, Users, ClipboardCheck, BookOpen, LayoutGrid } from "luc
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-export default function Header({ onMenuClick, onNotesClick }) {
+export default function Header({ onMenuClick, onNotesClick, selectedModel, setSelectedModel }) {
   const pathname = usePathname()
 
   const navItems = [
@@ -58,8 +58,19 @@ export default function Header({ onMenuClick, onNotesClick }) {
         </div>
       </div>
 
-      {/* Right Section: Notes button */}
+      {/* Right Section: Notes button & Model Selector */}
       <div className="flex items-center justify-end gap-2 w-1/3">
+        {selectedModel && setSelectedModel && (
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="text-xs sm:text-sm bg-white/40 backdrop-blur-md px-2 py-1.5 rounded-lg border border-white/40 shadow-sm text-zinc-700 outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="llama3-70b-8192">Llama 3 70B (Groq)</option>
+            <option value="qwen-max">Qwen Max (Alibaba)</option>
+          </select>
+        )}
         <button
           onClick={onNotesClick}
           className="rounded-xl p-1.5 sm:p-2 glass-icon-button flex-shrink-0"

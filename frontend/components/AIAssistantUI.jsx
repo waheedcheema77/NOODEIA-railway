@@ -56,6 +56,7 @@ export default function AIAssistantUI() {
   const [currentMarkdown, setCurrentMarkdown] = useState("")
   const [xpGain, setXpGain] = useState(0)
   const [triggerXpUpdate, setTriggerXpUpdate] = useState(0)
+  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash")
 
   useEffect(() => {
     // Add chat-interface class to html and body for proper styling
@@ -323,7 +324,8 @@ export default function AIAssistantUI() {
           body: JSON.stringify({
             message: content,
             conversationHistory: conversation?.messages || [],
-            conversationId: convId
+            conversationId: convId,
+            model: selectedModel
           })
         })
 
@@ -573,7 +575,8 @@ export default function AIAssistantUI() {
           body: JSON.stringify({
             message: message.content,
             conversationHistory: historyUpToMessage,
-            conversationId: conversation.id
+            conversationId: conversation.id,
+            model: selectedModel
           })
         })
 
@@ -712,6 +715,8 @@ export default function AIAssistantUI() {
         <Header
           onMenuClick={() => setSidebarOpen(true)}
           onNotesClick={() => setMarkdownPanelOpen(true)}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
         />
         <main className="flex flex-1 flex-col min-h-0 overflow-visible" style={{ backgroundColor: 'var(--app-bg)' }}>
           <ChatPane

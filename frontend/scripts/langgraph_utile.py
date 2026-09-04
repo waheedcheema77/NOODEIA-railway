@@ -206,13 +206,30 @@ class GraphState(TypedDict):
 
 class LLM:
     def __init__(self, model: str = "gemini-2.5-flash", temperature: float = 0.2):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if not self.api_key:
-            raise RuntimeError("GEMINI_API_KEY not configured for Gemini access.")
         self.model = model
         self.temperature = temperature
-        self.endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        
+        self.provider = "gemini"
+        if "qwen" in self.model.lower():
+            self.provider = "dashscope"
+            self.api_key = os.getenv("DASHSCOPE_API_KEY")
+            if not self.api_key:
+                print("WARNING: DASHSCOPE_API_KEY not configured for Qwen access.")
+            self.endpoint = os.getenv("DASHSCOPE_ENDPOINT", "https://ws-zc3a16vhipuqlr1p.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions")
+        elif "llama" in self.model.lower() or "mixtral" in self.model.lower() or "gemma" in self.model.lower() or "groq" in self.model.lower():
+            self.provider = "groq"
+            self.api_key = os.getenv("GROQ_API_KEY")
+            if not self.api_key:
+                print("WARNING: GROQ_API_KEY not configured for Groq access.")
+            self.endpoint = "https://api.groq.com/openai/v1/chat/completions"
+        else:
+            self.provider = "gemini"
+            self.api_key = os.getenv("GEMINI_API_KEY")
+            if not self.api_key:
+                print("WARNING: GEMINI_API_KEY not configured for Gemini access.")
+            self.endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
+    # --- GEMINI SPECIFIC METHODS ---
     @staticmethod
     def _text_parts(content: str) -> list[dict[str, Any]]:
         return [{"text": str(content)}]
@@ -266,11 +283,9 @@ class LLM:
             content = msg.get("content", "")
 
             if role == "system":
-                # Use the first system message as the Gemini system instruction
                 if content and system_instruction is None:
                     system_instruction = {"parts": [{"text": str(content)}]}
                     continue
-                # Any additional system prompts get treated as user context
                 role = "user"
 
             if role == "assistant":
@@ -305,6 +320,75 @@ class LLM:
 
         return system_instruction, contents
 
+    # --- OPENAI SPECIFIC METHODS (Groq & Qwen) ---
+    def _openai_chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int = 1000,
+    ) -> dict[str, Any]:
+        # Standardize messages for OpenAI format
+        oai_messages = []
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if role == "tool":
+                # Ensure tool messages have tool_call_id
+                oai_messages.append({
+                    "role": "tool",
+                    "content": str(content),
+                    "tool_call_id": msg.get("tool_call_id", msg.get("name", "tool"))
+                })
+            elif role == "assistant":
+                new_msg = {"role": "assistant", "content": content}
+                if msg.get("tool_calls"):
+                    # Standardize tool calls
+                    tcs = []
+                    for tc in msg.get("tool_calls", []):
+                        fn = tc.get("function") or {}
+                        tcs.append({
+                            "id": tc.get("id", fn.get("name", "tool")),
+                            "type": "function",
+                            "function": {
+                                "name": fn.get("name", ""),
+                                "arguments": fn.get("arguments", "{}")
+                            }
+                        })
+                    new_msg["tool_calls"] = tcs
+                oai_messages.append(new_msg)
+            else:
+                oai_messages.append({"role": role, "content": str(content)})
+
+        body = {
+            "model": self.model,
+            "messages": oai_messages,
+            "temperature": temperature if temperature is not None else self.temperature,
+            "max_tokens": max_tokens,
+        }
+        
+        if tools:
+            body["tools"] = tools
+            if tool_choice == "auto":
+                body["tool_choice"] = "auto"
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        resp = requests.post(self.endpoint, headers=headers, json=body, timeout=60)
+        
+        if resp.status_code != 200:
+            raise RuntimeError(f"{self.provider} API error: {resp.status_code} {resp.text}")
+            
+        data = resp.json()
+        if "error" in data:
+            raise RuntimeError(f"{self.provider} API error: {data['error']}")
+            
+        return data
+
     def chat(
         self,
         messages: list[dict[str, Any]],
@@ -319,6 +403,17 @@ class LLM:
         last_err: Exception | None = None
         for _ in range(retry):
             try:
+                if self.provider in ["groq", "dashscope"]:
+                    # Use OpenAI compatible endpoint logic
+                    return self._openai_chat(
+                        messages=messages,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    
+                # Otherwise use Google Gemini logic
                 system_instruction, contents = self._convert_messages(messages)
                 body: dict[str, Any] = {
                     "contents": contents,
@@ -389,7 +484,8 @@ class LLM:
                             }
                         )
 
-                message: dict[str, Any] = {"content": "\n".join(text_chunks).strip()}
+                message: dict[str, Any] = {"content": "
+".join(text_chunks).strip()}
                 if tool_calls:
                     message["tool_calls"] = tool_calls
 
@@ -397,9 +493,11 @@ class LLM:
 
             except Exception as exc:
                 last_err = exc
+                import time
                 time.sleep(0.5)
 
-        raise RuntimeError(f"Gemini call failed after retries: {last_err}")
+        raise RuntimeError(f"{self.provider} call failed after retries: {last_err}")
+
 
 # Prompts are now imported from prompts/reasoning_prompts.py
 

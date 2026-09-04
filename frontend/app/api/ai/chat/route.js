@@ -51,7 +51,7 @@ export async function POST(request) {
     const user = { id: userId }
 
     const body = await request.json()
-    const { message, conversationHistory, conversationId } = body || {}
+    const { message, conversationHistory, conversationId, model } = body || {}
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
@@ -121,7 +121,7 @@ export async function POST(request) {
     }
 
     const threadId = conversationId ? `ace-thread-${conversationId}` : undefined
-    const payload = { messages, scratch }
+    const payload = { messages, scratch, model: model || 'gemini-2.5-flash' }
     if (threadId) {
       payload.thread_id = threadId
     }
