@@ -17,7 +17,7 @@ from langchain_community.chains.graph_qa.cypher import GraphCypherQAChain
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.tools.tavily_search.tool import TavilySearchResults
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 # Add project root to path to import prompts
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -206,189 +206,28 @@ class GraphState(TypedDict):
     model: str
 
 class LLM:
-    def __init__(self, model: str = "gemini-2.5-flash", temperature: float = 0.2):
+    def __init__(self, model: str = "llama3-70b-8192", temperature: float = 0.2):
         self.model = model
         self.temperature = temperature
         
-        self.provider = "gemini"
         if "qwen" in self.model.lower():
             self.provider = "dashscope"
-            self.api_key = os.getenv("DASHSCOPE_API_KEY")
-            if not self.api_key:
+            import dashscope
+            dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
+            if not dashscope.api_key:
                 print("WARNING: DASHSCOPE_API_KEY not configured for Qwen access.")
-            self.endpoint = os.getenv("DASHSCOPE_ENDPOINT", "https://ws-zc3a16vhipuqlr1p.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions")
         elif "llama" in self.model.lower() or "mixtral" in self.model.lower() or "gemma" in self.model.lower() or "groq" in self.model.lower():
             self.provider = "groq"
             self.api_key = os.getenv("GROQ_API_KEY")
             if not self.api_key:
                 print("WARNING: GROQ_API_KEY not configured for Groq access.")
-            self.endpoint = "https://api.groq.com/openai/v1/chat/completions"
+            import groq
+            self.groq_client = groq.Groq(api_key=self.api_key)
         else:
-            self.provider = "gemini"
-            self.api_key = os.getenv("GEMINI_API_KEY")
-            if not self.api_key:
-                print("WARNING: GEMINI_API_KEY not configured for Gemini access.")
-            self.endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
-
-    # --- GEMINI SPECIFIC METHODS ---
-    @staticmethod
-    def _text_parts(content: str) -> list[dict[str, Any]]:
-        return [{"text": str(content)}]
-
-    @staticmethod
-    def _tool_response_part(name: str, raw_content: Any) -> dict[str, Any]:
-        if isinstance(raw_content, str):
-            try:
-                parsed = json.loads(raw_content)
-            except json.JSONDecodeError:
-                parsed = {"output": raw_content}
-        elif isinstance(raw_content, dict):
-            parsed = raw_content
-        elif isinstance(raw_content, list):
-            parsed = {"output": raw_content}
-        else:
-            parsed = {"output": raw_content}
-            
-        if not isinstance(parsed, dict):
-            parsed = {"output": parsed}
-            
-        return {"functionResponse": {"name": name or "tool", "response": parsed}}
-
-    @staticmethod
-    def _convert_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
-        if not tools:
-            return None
-        declarations: list[dict[str, Any]] = []
-        for tool in tools:
-            fn = tool.get("function") or {}
-            name = fn.get("name")
-            if not name:
-                continue
-            declarations.append(
-                {
-                    "name": name,
-                    "description": fn.get("description", ""),
-                    "parameters": fn.get("parameters", {"type": "object", "properties": {}}),
-                }
-            )
-        if not declarations:
-            return None
-        return [{"function_declarations": declarations}]
-
-    def _convert_messages(self, messages: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-        system_instruction = None
-        contents: list[dict[str, Any]] = []
-
-        for msg in messages:
-            role = msg.get("role", "")
-            content = msg.get("content", "")
-
-            if role == "system":
-                if content and system_instruction is None:
-                    system_instruction = {"parts": [{"text": str(content)}]}
-                    continue
-                role = "user"
-
-            if role == "assistant":
-                parts = []
-                if content:
-                    parts.extend(self._text_parts(content))
-                tool_calls = msg.get("tool_calls") or []
-                for tc in tool_calls:
-                    fn = tc.get("function") or {}
-                    name = fn.get("name")
-                    if name:
-                        try:
-                            args = json.loads(fn.get("arguments", "{}"))
-                        except:
-                            args = {}
-                        parts.append({"functionCall": {"name": name, "args": args}})
-                if not parts:
-                    parts = self._text_parts("")
-                contents.append({"role": "model", "parts": parts})
-            elif role == "tool":
-                name = msg.get("name") or msg.get("tool_name") or msg.get("tool_call_id") or "tool"
-                part = self._tool_response_part(name, content)
-                if contents and contents[-1]["role"] == "user":
-                    contents[-1]["parts"].append(part)
-                else:
-                    contents.append({"role": "user", "parts": [part]})
-            else:
-                if contents and contents[-1]["role"] == "user":
-                    contents[-1]["parts"].extend(self._text_parts(content))
-                else:
-                    contents.append({"role": "user", "parts": self._text_parts(content)})
-
-        return system_instruction, contents
-
-    # --- OPENAI SPECIFIC METHODS (Groq & Qwen) ---
-    def _openai_chat(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
-        tool_choice: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int = 1000,
-    ) -> dict[str, Any]:
-        # Standardize messages for OpenAI format
-        oai_messages = []
-        for msg in messages:
-            role = msg.get("role", "")
-            content = msg.get("content", "")
-            if role == "tool":
-                # Ensure tool messages have tool_call_id
-                oai_messages.append({
-                    "role": "tool",
-                    "content": str(content),
-                    "tool_call_id": msg.get("tool_call_id", msg.get("name", "tool"))
-                })
-            elif role == "assistant":
-                new_msg = {"role": "assistant", "content": content}
-                if msg.get("tool_calls"):
-                    # Standardize tool calls
-                    tcs = []
-                    for tc in msg.get("tool_calls", []):
-                        fn = tc.get("function") or {}
-                        tcs.append({
-                            "id": tc.get("id", fn.get("name", "tool")),
-                            "type": "function",
-                            "function": {
-                                "name": fn.get("name", ""),
-                                "arguments": fn.get("arguments", "{}")
-                            }
-                        })
-                    new_msg["tool_calls"] = tcs
-                oai_messages.append(new_msg)
-            else:
-                oai_messages.append({"role": role, "content": str(content)})
-
-        body = {
-            "model": self.model,
-            "messages": oai_messages,
-            "temperature": temperature if temperature is not None else self.temperature,
-            "max_tokens": max_tokens,
-        }
-        
-        if tools:
-            body["tools"] = tools
-            if tool_choice == "auto":
-                body["tool_choice"] = "auto"
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-
-        resp = requests.post(self.endpoint, headers=headers, json=body, timeout=60)
-        
-        if resp.status_code != 200:
-            raise RuntimeError(f"{self.provider} API error: {resp.status_code} {resp.text}")
-            
-        data = resp.json()
-        if "error" in data:
-            raise RuntimeError(f"{self.provider} API error: {data['error']}")
-            
-        return data
+            self.provider = "groq"
+            self.api_key = os.getenv("GROQ_API_KEY")
+            import groq
+            self.groq_client = groq.Groq(api_key=self.api_key)
 
     def chat(
         self,
@@ -404,93 +243,80 @@ class LLM:
         last_err: Exception | None = None
         for _ in range(retry):
             try:
-                if self.provider in ["groq", "dashscope"]:
-                    # Use OpenAI compatible endpoint logic
-                    return self._openai_chat(
-                        messages=messages,
-                        tools=tools,
-                        tool_choice=tool_choice,
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    )
+                # Standardize messages
+                oai_messages = []
+                for msg in messages:
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    if role == "tool":
+                        oai_messages.append({
+                            "role": "tool",
+                            "content": str(content),
+                            "tool_call_id": msg.get("tool_call_id", msg.get("name", "tool"))
+                        })
+                    elif role == "assistant":
+                        new_msg = {"role": "assistant", "content": content}
+                        if msg.get("tool_calls"):
+                            tcs = []
+                            for tc in msg.get("tool_calls", []):
+                                fn = tc.get("function") or {}
+                                tcs.append({
+                                    "id": tc.get("id", fn.get("name", "tool")),
+                                    "type": "function",
+                                    "function": {
+                                        "name": fn.get("name", ""),
+                                        "arguments": fn.get("arguments", "{}")
+                                    }
+                                })
+                            new_msg["tool_calls"] = tcs
+                        oai_messages.append(new_msg)
+                    else:
+                        oai_messages.append({"role": role, "content": str(content)})
+                
+                temp = temperature if temperature is not None else self.temperature
+                
+                if self.provider == "groq":
+                    kwargs = {
+                        "model": self.model,
+                        "messages": oai_messages,
+                        "temperature": temp,
+                        "max_tokens": max_tokens,
+                    }
+                    if tools:
+                        kwargs["tools"] = tools
+                        if tool_choice == "auto":
+                            kwargs["tool_choice"] = "auto"
+                    if response_mime_type == "application/json":
+                        kwargs["response_format"] = {"type": "json_object"}
+                        
+                    completion = self.groq_client.chat.completions.create(**kwargs)
+                    return completion.model_dump()
                     
-                # Otherwise use Google Gemini logic
-                system_instruction, contents = self._convert_messages(messages)
-                body: dict[str, Any] = {
-                    "contents": contents,
-                    "generationConfig": {
-                        "temperature": temperature if temperature is not None else self.temperature,
-                        "maxOutputTokens": max_tokens,
-                    },
-                }
-
-                if response_mime_type:
-                    body.setdefault("generationConfig", {})["responseMimeType"] = response_mime_type
-
-                tools_spec = self._convert_tools(tools)
-                if tools_spec:
-                    body["tools"] = tools_spec
-                    if tool_choice == "auto":
-                        body["toolConfig"] = {
-                            "functionCallingConfig": {
-                                "mode": "AUTO"
-                            }
-                        }
-
-                if system_instruction:
-                    body["systemInstruction"] = system_instruction
-
-                resp = requests.post(
-                    self.endpoint,
-                    params={"key": self.api_key},
-                    json=body,
-                    timeout=60,
-                )
-                if resp.status_code != 200:
-                    raise RuntimeError(f"Gemini API error: {resp.status_code} {resp.text}")
-
-                data = resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"Gemini API error: {data['error']}")
-
-                candidates = data.get("candidates") or []
-                if not candidates:
-                    raise RuntimeError("Gemini API returned no candidates.")
-
-                candidate = candidates[0]
-                finish_reason = candidate.get("finishReason")
-                if finish_reason and finish_reason not in {"STOP", "MAX_TOKENS"}:
-                    raise RuntimeError(f"Generation halted by Gemini (reason={finish_reason}).")
-
-                content_obj = candidate.get("content") or {}
-                parts = content_obj.get("parts") or []
-                text_chunks: list[str] = []
-                tool_calls: list[dict[str, Any]] = []
-
-                for part in parts:
-                    if "text" in part:
-                        text_chunks.append(part["text"])
-                    if "functionCall" in part:
-                        fc = part["functionCall"] or {}
-                        name = fc.get("name") or "tool"
-                        args = fc.get("args") or {}
-                        tool_calls.append(
-                            {
-                                "id": name,
-                                "type": "function",
-                                "function": {
-                                    "name": name,
-                                    "arguments": json.dumps(args),
-                                },
-                            }
-                        )
-
-                message: dict[str, Any] = {"content": "\n".join(text_chunks).strip()}
-                if tool_calls:
-                    message["tool_calls"] = tool_calls
-
-                return {"choices": [{"message": message}]}
-
+                elif self.provider == "dashscope":
+                    import dashscope
+                    from http import HTTPStatus
+                    kwargs = {
+                        "model": self.model,
+                        "messages": oai_messages,
+                        "result_format": "message"
+                    }
+                    if tools:
+                        kwargs["tools"] = tools
+                        
+                    response = dashscope.Generation.call(**kwargs)
+                    if response.status_code == HTTPStatus.OK:
+                        msg = response.output.choices[0]['message']
+                        content = msg.get('content', '')
+                        tool_calls = msg.get('tool_calls', [])
+                        
+                        ret_msg = {"content": content}
+                        if tool_calls:
+                            ret_msg["tool_calls"] = tool_calls
+                            
+                        return {"choices": [{"message": ret_msg}]}
+                    else:
+                        raise RuntimeError(f"DashScope API error: {response.code} {response.message}")
+                        
             except Exception as exc:
                 last_err = exc
                 import time

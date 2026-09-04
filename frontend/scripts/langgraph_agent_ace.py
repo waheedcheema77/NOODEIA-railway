@@ -69,13 +69,13 @@ def _infer_topic(question: str) -> str | None:
 
 def get_ace_system(learner_id: str | None = None, model_name: str | None = None):
     """Get or create the ACE system for a specific learner."""
-    key = f"{learner_id or 'global'}_{model_name or 'gemini-2.5-flash'}"
+    key = f"{learner_id or 'global'}_{model_name or 'llama3-70b-8192'}"
     entry = _ACE_CACHE.get(key)
     if entry is None:
         entry = {}
         _ACE_CACHE[key] = entry
 
-    target_model = model_name or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    target_model = model_name or os.getenv("LLAMA_MODEL", "llama3-70b-8192")
     try:
         target_temperature = float(os.getenv("ACE_LLM_TEMPERATURE", "0.2"))
     except ValueError:
@@ -137,7 +137,7 @@ def router_node(state: GraphState) -> GraphState:
         state["scratch"] = scratch
 
     # Get ACE memory for context-aware routing
-    model_name = state.get("model", "gemini-2.5-flash")
+    model_name = state.get("model", "llama3-70b-8192")
     memory, _ = get_ace_system(learner_id, model_name=model_name)
     if not scratch.get("_ace_memory_loaded"):
         if not memory.consume_fresh_init_flag():
@@ -232,7 +232,7 @@ def solver_node_with_ace(state: GraphState) -> GraphState:
         state["scratch"] = scratch
 
     # Get ACE system
-    model_name = state.get("model", "gemini-2.5-flash")
+    model_name = state.get("model", "llama3-70b-8192")
     memory, pipeline = get_ace_system(learner_id, model_name=model_name)
 
     facets = scratch.get("ace_retrieval_facets") or _extract_retrieval_facets(question, scratch)

@@ -60,7 +60,7 @@ class ChatPayload(BaseModel):
     mode: Optional[str] = ""
     scratch: Optional[dict[str, Any]] = Field(default_factory=dict)
     thread_id: Optional[str] = None
-    model: Optional[str] = "gemini-2.5-flash"
+    model: Optional[str] = "llama3-70b-8192"
 
 
 @app.post("/chat")

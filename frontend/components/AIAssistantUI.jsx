@@ -56,7 +56,7 @@ export default function AIAssistantUI() {
   const [currentMarkdown, setCurrentMarkdown] = useState("")
   const [xpGain, setXpGain] = useState(0)
   const [triggerXpUpdate, setTriggerXpUpdate] = useState(0)
-  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash")
+  const [selectedModel, setSelectedModel] = useState("llama3-70b-8192")
 
   useEffect(() => {
     // Add chat-interface class to html and body for proper styling

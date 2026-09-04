@@ -66,9 +66,12 @@ export default function Header({ onMenuClick, onNotesClick, selectedModel, setSe
             onChange={(e) => setSelectedModel(e.target.value)}
             className="text-xs sm:text-sm bg-white/40 backdrop-blur-md px-2 py-1.5 rounded-lg border border-white/40 shadow-sm text-zinc-700 outline-none focus:ring-1 focus:ring-indigo-500"
           >
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
             <option value="llama3-70b-8192">Llama 3 70B (Groq)</option>
-            <option value="qwen-max">Qwen Max (Alibaba)</option>
+            <option value="llama3-8b-8192">Llama 3 8B (Groq)</option>
+            <option value="mixtral-8x7b-32768">Mixtral 8x7B (Groq)</option>
+            <option value="qwen-max">Qwen Max (DashScope)</option>
+            <option value="qwen-plus">Qwen Plus (DashScope)</option>
+            <option value="qwen-turbo">Qwen Turbo (DashScope)</option>
           </select>
         )}
         <button
