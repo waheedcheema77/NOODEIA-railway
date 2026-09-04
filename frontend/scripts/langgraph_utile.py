@@ -484,8 +484,7 @@ class LLM:
                             }
                         )
 
-                message: dict[str, Any] = {"content": "
-".join(text_chunks).strip()}
+                message: dict[str, Any] = {"content": "\n".join(text_chunks).strip()}
                 if tool_calls:
                     message["tool_calls"] = tool_calls
 
@@ -949,7 +948,8 @@ def _finalize_answer(text: str) -> str:
 def solve_chat(state: GraphState) -> dict[str, Any]:
     params = state["scratch"]
     temp = float(params.get("temperature", 0.7))
-    llm = LLM(temperature=temp)
+    model_name = state.get("model", "gemini-2.5-flash")
+    llm = LLM(model=model_name, temperature=temp)
     
     user_name = params.get("name") or params.get("user_name", "Student")
     user_level = params.get("level") or params.get("user_level", "Unknown")
