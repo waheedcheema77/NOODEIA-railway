@@ -21,6 +21,7 @@ from ace_components import ACEPipeline, ExecutionTrace
 from ace_memory import ACEMemory
 from ace_memory_store import Neo4jMemoryStore
 from langgraph_utile import *
+from langgraph_utile import _calculator_schema, _google_search_schema, _neo4j_retrieveqa_schema
 
 # Global ACE caches keyed by learner identifier
 _ACE_CACHE: dict[str, dict[str, Any]] = {}
